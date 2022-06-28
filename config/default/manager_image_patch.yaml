@@ -6,7 +6,13 @@ metadata:
 spec:
   template:
     spec:
+      imagePullSecrets:
+        - name: spectro-common-dev-image-pull-secret
       containers:
       # Change the value of image field below to your controller image URL
-      - image: docker.io/loftsh/cluster-api-provider-vcluster:main
+      - image: gcr.io/spectro-common-dev/tylergillson/cluster-api-provider-nested/nested-controller:dev
         name: manager
+        command: [ "/bin/bash", "-c", "--" ]
+        args: [ "while true; do sleep 30; done;" ]
+        livenessProbe: null
+        readinessProbe: null

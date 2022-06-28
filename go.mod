@@ -1,8 +1,10 @@
-module github.com/loft-sh/cluster-api-provider-vcluster
+module github.com/spectrocloud/cluster-api-provider-vcluster
 
 go 1.18
 
 require (
+	github.com/onsi/ginkgo v1.16.5
+	github.com/onsi/gomega v1.17.0
 	k8s.io/apimachinery v0.23.3
 	k8s.io/apiserver v0.23.3
 	k8s.io/client-go v0.23.3
@@ -54,9 +56,11 @@ require (
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
 	github.com/moby/term v0.0.0-20210610120745-9d4ed1856297 // indirect
+	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/cobra v1.2.1 // indirect
 	gopkg.in/AlecAivazis/survey.v1 v1.8.8 // indirect
+	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/kubectl v0.23.0 // indirect
 )

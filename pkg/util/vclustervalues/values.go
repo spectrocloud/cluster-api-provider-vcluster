@@ -7,7 +7,7 @@ import (
 	"github.com/loft-sh/vcluster/pkg/util/loghelper"
 	"k8s.io/apimachinery/pkg/version"
 
-	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
+	v1alpha1 "github.com/spectrocloud/cluster-api-provider-vcluster/api/v1alpha1"
 )
 
 type Values interface {

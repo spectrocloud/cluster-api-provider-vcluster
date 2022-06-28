@@ -42,14 +42,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/constants"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/cidrdiscovery"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/conditions"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/patch"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/vclustervalues"
+	v1alpha1 "github.com/spectrocloud/cluster-api-provider-vcluster/api/v1alpha1"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/constants"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/helm"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/cidrdiscovery"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/conditions"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/patch"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/vclustervalues"
 )
 
 // VClusterReconciler reconciles a VCluster object
@@ -90,6 +90,7 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 
 		return ctrl.Result{}, nil
 	}
+	r.Log.Debugf("Found VCluster %+v", vCluster)
 
 	// is deleting?
 	if vCluster.DeletionTimestamp != nil {
@@ -130,19 +131,24 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 			// as per CAPI docs:
 			// The cluster controller will set an OwnerReference on the infrastructureCluster.
 			// This controller should normally take no action during reconciliation until it sees the OwnerReference.
+			r.Log.Debugf("Aborting VCluster reconcile. No cluster Owner found.")
 			return ctrl.Result{}, nil
 		}
 	}
+	r.Log.Debugf("Validated VCluster owner references")
 
 	// ensure finalizer
 	err = EnsureFinalizer(ctx, r.Client, vCluster, CleanupFinalizer)
 	if err != nil {
+		r.Log.Debugf("Error ensuring finalizer: %v", err)
 		return ctrl.Result{}, err
 	}
+	r.Log.Debugf("Ensured VCluster finalizer")
 
 	// Initialize the patch helper.
 	patchHelper, err := patch.NewHelper(vCluster, r.Client)
 	if err != nil {
+		r.Log.Debugf("Error initializing patch helper: %v", err)
 		return ctrl.Result{}, err
 	}
 

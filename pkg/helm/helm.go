@@ -95,7 +95,8 @@ func (c *client) exec(args []string) error {
 			return nil
 		}
 
-		klog.Errorf("Error executing helm %s: %s", strings.Join(args, " "), string(output))
+		klog.Errorf("Error executing command: helm %s", strings.Join(args, " "))
+		klog.Errorf("Output: %s, Error: %v", string(output), err)
 		return fmt.Errorf("error executing helm %s: %s", args[0], string(output))
 	}
 

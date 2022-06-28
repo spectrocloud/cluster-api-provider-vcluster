@@ -32,10 +32,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	infrastructurev1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
-	"github.com/loft-sh/cluster-api-provider-vcluster/controllers"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
+	infrastructurev1alpha1 "github.com/spectrocloud/cluster-api-provider-vcluster/api/v1alpha1"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/controllers"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/helm"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -56,11 +56,21 @@ func main() {
 	var enableLeaderElection bool
 	var probeAddr string
 	var namespace string
+	var webhookPort int
+	var webhookCertDir string
+
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
+
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
+		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+
+	flag.IntVar(&webhookPort, "webhook-port", 9443, "Webhook Server port")
+
+	flag.StringVar(&webhookCertDir, "webhook-cert-dir", "/tmp/k8s-webhook-server/serving-certs/",
+		"Webhook cert dir, only used when webhook-port is specified.")
+
 	flag.StringVar(&namespace, "namespace", "", "The namespace watched by the controller manager.")
 
 	opts := zap.Options{
@@ -74,11 +84,12 @@ func main() {
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "4012c7fa.cluster.x-k8s.io",
 		Namespace:              namespace,
+		Port:                   webhookPort,
+		CertDir:                webhookCertDir,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -91,29 +102,39 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.VClusterReconciler{
-		Client:      mgr.GetClient(),
-		HelmClient:  helm.NewClient(rawConfig),
-		HelmSecrets: helm.NewSecrets(mgr.GetClient()),
-		Log:         loghelper.New("vcluster-controller"),
-		Scheme:      mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "VCluster")
-		os.Exit(1)
+	setupLog.Info("ENABLE_WEBHOOKS setting", "ENABLE_WEBHOOKS", os.Getenv("ENABLE_WEBHOOKS"))
+
+	// activate either webhook or controller - not both
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = (&infrastructurev1alpha1.VCluster{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "VCluster")
+			os.Exit(1)
+		}
+	} else {
+		if err = (&controllers.VClusterReconciler{
+			Client:      mgr.GetClient(),
+			HelmClient:  helm.NewClient(rawConfig),
+			HelmSecrets: helm.NewSecrets(mgr.GetClient()),
+			Log:         loghelper.New("vcluster-controller"),
+			Scheme:      mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "VCluster")
+			os.Exit(1)
+		}
 	}
 	//+kubebuilder:scaffold:builder
 
-	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+	if err = mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
 	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+	if err = mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err = mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}

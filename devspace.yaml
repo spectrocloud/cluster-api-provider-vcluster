@@ -1,58 +1,53 @@
-version: v2beta1
-name: cluster-api-provider-vcluster
+version: v1beta11
 
 vars:
-  IMAGE: loftsh/cluster-api-provider-vcluster
+- name: IMAGE
+  value: gcr.io/spectro-common-dev/tylergillson/cluster-api-provider-nested/nested-controller
 
 images:
-  provider:
+  controller:
+    createPullSecret: false
+    dockerfile: ./Dockerfile.dev
     image: ${IMAGE}
+    tags:
+    - dev
     rebuildStrategy: ignoreContextChanges
-    docker: {}
-    target: builder
+    build:
+      docker:
+        #args:
+        #- "--no-cache"
+        useBuildKit: true
 
 deployments:
-  provider:
-    namespace: cluster-api-provider-vcluster-system
-    updateImageTags: true
-    kubectl:
-      kustomize: true
-      manifests:
-      - config/default/
+- name: nested-controller
+  namespace: cluster-api-provider-vcluster-system
+  kubectl:
+    kustomize: true
+    manifests:
+    - config/default
+
 dev:
-  provider:
-    namespace: cluster-api-provider-vcluster-system
+  terminal:
     imageSelector: ${IMAGE}
-    workingDir: /workspace
-    terminal:
-      command: "./devspace_start.sh"
-    ports:
-    - port: 2346:2345
-    sync:
-    - path: ./
-      excludePaths:
-        - '**'
-        - '!/pkg'
-        - '!/api'
-        - '!/controllers'
-        - '!/vendor'
-        - '!/hack'
-        - '!/config'
-        - '!/go.mod'
-        - '!/go.sum'
-        - '!/devspace_start.sh'
-        - 'Makefile'
-
-commands:
-  dev: |-
-    devspace run-pipeline dev -n cluster-api-provider-vcluster-system $@
-  deploy: |-
-    devspace run-pipeline --profile deploy -n cluster-api-provider-vcluster-system -d $@
-
-profiles:
-  - name: deploy
-    patches:
-      - op: remove
-        path: images.provider.rebuildStrategy
-      - op: remove
-        path: images.provider.target
+    command:
+    - ./devspace_start.sh
+  ports:
+  - imageSelector: ${IMAGE}
+    forward:
+    - port: 2345
+  sync:
+  - labelSelector:
+      control-plane: controller-manager
+    containerPath: /devspace
+    excludePaths:
+      - '**'
+      - '!/pkg'
+      - '!/api'
+      - '!/controllers'
+      - '!/vendor'
+      - '!/hack'
+      - '!/config'
+      - '!/go.mod'
+      - '!/go.sum'
+      - '!/devspace_start.sh'
+      - 'Makefile'
