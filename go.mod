@@ -1,4 +1,4 @@
-module github.com/loft-sh/cluster-api-provider-vcluster
+module github.com/spectrocloud/cluster-api-provider-vcluster
 
 go 1.18
 

@@ -2,7 +2,7 @@ domain: cluster.x-k8s.io
 layout:
 - go.kubebuilder.io/v3
 projectName: cluster-api-provider-vcluster
-repo: github.com/loft-sh/cluster-api-provider-vcluster
+repo: github.com/spectrocloud/cluster-api-provider-vcluster
 resources:
 - api:
     crdVersion: v1
@@ -11,7 +11,7 @@ resources:
   domain: cluster.x-k8s.io
   group: infrastructure
   kind: VCluster
-  path: github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1
+  path: github.com/spectrocloud/cluster-api-provider-vcluster/api/v1alpha1
   version: v1alpha1
   webhooks:
     defaulting: true

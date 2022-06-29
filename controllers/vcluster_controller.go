@@ -42,14 +42,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/constants"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/cidrdiscovery"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/conditions"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/patch"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/vclustervalues"
+	v1alpha1 "github.com/spectrocloud/cluster-api-provider-vcluster/api/v1alpha1"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/constants"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/helm"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/cidrdiscovery"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/conditions"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/patch"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/vclustervalues"
 )
 
 // VClusterReconciler reconciles a VCluster object
