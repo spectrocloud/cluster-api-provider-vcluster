@@ -19,8 +19,8 @@ import (
 	"reflect"
 	"time"
 
-	v1alpha1 "github.com/spectrocloud/cluster-api-provider-vcluster/api/v1alpha1"
-	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/conditions"
+	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
+	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/conditions"
 
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"

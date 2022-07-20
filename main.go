@@ -32,10 +32,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	infrastructurev1alpha1 "github.com/spectrocloud/cluster-api-provider-vcluster/api/v1alpha1"
-	"github.com/spectrocloud/cluster-api-provider-vcluster/controllers"
-	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/helm"
-	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
+	infrastructurev1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
+	"github.com/loft-sh/cluster-api-provider-vcluster/controllers"
+	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
+	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
 	//+kubebuilder:scaffold:imports
 )
 
