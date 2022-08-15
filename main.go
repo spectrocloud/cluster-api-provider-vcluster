@@ -66,7 +66,7 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 
-	flag.IntVar(&webhookPort, "webhook-port", 9443, "Webhook Server port")
+	flag.IntVar(&webhookPort, "webhook-port", 0, "Webhook Server port")
 
 	flag.StringVar(&webhookCertDir, "webhook-cert-dir", "/tmp/k8s-webhook-server/serving-certs/",
 		"Webhook cert dir, only used when webhook-port is specified.")
@@ -102,10 +102,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLog.Info("ENABLE_WEBHOOKS setting", "ENABLE_WEBHOOKS", os.Getenv("ENABLE_WEBHOOKS"))
-
 	// activate either webhook or controller - not both
-	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+	if webhookPort != 0 {
 		if err = (&infrastructurev1alpha1.VCluster{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "VCluster")
 			os.Exit(1)
