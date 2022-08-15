@@ -2,6 +2,9 @@
 
 This is a [Cluster API](https://cluster-api.sigs.k8s.io/introduction.html) provider for the [vcluster project](https://www.vcluster.com/) - create fully functional virtual Kubernetes clusters.
 
+# Quick Start - Deploying Nginx in a Kind cluster
+ Can be found [here](./docs/quick-start.md)
+
 # Installation instructions
 
 Prerequisites:
@@ -50,7 +53,7 @@ clusterctl generate cluster ${CLUSTER_NAME} \
 
 Now we just need to wait until vcluster custom resource reports ready status:
 ```shell
-kubectl wait --for=condition=ready vcluster -n $CLUSTER_NAMESPACE $CLUSTER_NAME 
+kubectl wait --for=condition=ready vcluster -n $CLUSTER_NAMESPACE $CLUSTER_NAME --timeout=300s
 ```
 At this point the cluster is ready to be used. Please refer to the next chapter to get the credentials.
 
@@ -61,7 +64,7 @@ There are multiple methods for exposing your vcluster instance, and they are des
 
 However, if you are not exposing the vcluster instance with an external hostname, but you want to connect to it from outside the cluster, you will need to use the [vcluster CLI](https://www.vcluster.com/docs/getting-started/setup):
 ```shell
-vcluster connect ${CLUSTER_NAME} -n {CLUSTER_NAMESPACE}
+vcluster connect ${CLUSTER_NAME} -n ${CLUSTER_NAMESPACE}
 ```
 
 
@@ -106,6 +109,6 @@ cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTE
 
 Now we just need to wait until VCluster custom resource reports ready status:
 ```shell
-kubectl wait --for=condition=ready vcluster -n $CLUSTER_NAMESPACE $CLUSTER_NAME 
+kubectl wait --for=condition=ready vcluster -n $CLUSTER_NAMESPACE $CLUSTER_NAME --timeout=300s
 ```
 At this point the cluster is ready to be used. Please refer to "How to connect to your vcluster" chapter above to get the credentials.
