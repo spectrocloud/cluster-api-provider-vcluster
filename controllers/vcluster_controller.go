@@ -80,7 +80,7 @@ const (
 )
 
 func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, reterr error) {
-	r.Log.Debugf("Reconcile %s", req.NamespacedName)
+	r.Log.Infof("Reconcile %s", req.NamespacedName)
 
 	// get virtual cluster object
 	vCluster := &v1alpha1.VCluster{}
@@ -142,7 +142,7 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 	// ensure finalizer
 	err = EnsureFinalizer(ctx, r.Client, vCluster, CleanupFinalizer)
 	if err != nil {
-		r.Log.Debugf("Error ensuring finalizer: %v", err)
+		r.Log.Errorf("Error ensuring finalizer: %v", err)
 		return ctrl.Result{}, err
 	}
 	r.Log.Debugf("Ensured VCluster finalizer")
@@ -150,7 +150,7 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 	// Initialize the patch helper.
 	patchHelper, err := patch.NewHelper(vCluster, r.Client)
 	if err != nil {
-		r.Log.Debugf("Error initializing patch helper: %v", err)
+		r.Log.Errorf("Error initializing patch helper: %v", err)
 		return ctrl.Result{}, err
 	}
 
@@ -172,7 +172,7 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 	// check if we have to redeploy
 	err = r.redeployIfNeeded(ctx, vCluster)
 	if err != nil {
-		r.Log.Infof("error during virtual cluster deploy %s/%s: %v", vCluster.Namespace, vCluster.Name, err)
+		r.Log.Errorf("error during virtual cluster deploy %s/%s: %v", vCluster.Namespace, vCluster.Name, err)
 		conditions.MarkFalse(vCluster, v1alpha1.HelmChartDeployedCondition, "HelmDeployFailed", v1alpha1.ConditionSeverityError, "%v", err)
 		return ctrl.Result{RequeueAfter: time.Second * 5}, err
 	}
@@ -180,14 +180,14 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 	// check if vcluster is initialized and sync the kubeconfig Secret
 	restConfig, err := r.syncVClusterKubeconfig(ctx, vCluster)
 	if err != nil {
-		r.Log.Debugf("vcluster %s/%s is not ready: %v", vCluster.Namespace, vCluster.Name, err)
+		r.Log.Errorf("vcluster %s/%s is not ready: %v", vCluster.Namespace, vCluster.Name, err)
 		conditions.MarkFalse(vCluster, v1alpha1.KubeconfigReadyCondition, "CheckFailed", v1alpha1.ConditionSeverityWarning, "%v", err)
 		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 
 	vCluster.Status.Ready, err = r.checkReadyz(vCluster, restConfig)
 	if err != nil || !vCluster.Status.Ready {
-		r.Log.Debugf("readiness check failed: %v", err)
+		r.Log.Errorf("readiness check failed: %v", err)
 		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 
@@ -314,6 +314,13 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 	if err != nil {
 		if len(err.Error()) > 512 {
 			err = fmt.Errorf("%v ... ", err.Error()[:512])
+		}
+
+		// delete failed releases so that installation is attempted each iteration
+		if strings.Contains(err.Error(), "has no deployed releases") {
+			if err = r.HelmClient.Delete(vCluster.Name, vCluster.Namespace); err != nil {
+				r.Log.Errorf("error deleting helm release: %v", err)
+			}
 		}
 
 		return fmt.Errorf("error installing / upgrading vcluster: %v", err)
