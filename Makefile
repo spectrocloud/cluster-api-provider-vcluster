@@ -83,6 +83,10 @@ docker: ## Build & push docker image with the manager.
 	docker build -t ${IMG} .
 	docker push ${IMG}
 
+.PHONY: docker-build-dev
+docker-build-dev: ## Build docker dev image with the manager.
+	docker build -f ./Dockerfile.dev -t ${IMG} .
+
 ##@ Deployment
 
 ifndef ignore-not-found
