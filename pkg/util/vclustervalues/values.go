@@ -1,6 +1,8 @@
 package vclustervalues
 
 import (
+	"strings"
+
 	"github.com/ghodss/yaml"
 	vclusterhelm "github.com/loft-sh/vcluster/pkg/helm"
 	vclustervalues "github.com/loft-sh/vcluster/pkg/helm/values"
@@ -11,7 +13,7 @@ import (
 )
 
 type Values interface {
-	Merge(release *v1alpha1.VirtualClusterHelmRelease, logger loghelper.Logger) (string, error)
+	Merge(release *v1alpha1.VirtualClusterHelmRelease, logger loghelper.Logger) (string, string, error)
 }
 
 func NewValuesMerger(kubernetesVersion *version.Info) Values {
@@ -24,29 +26,31 @@ type values struct {
 	kubernetesVersion *version.Info
 }
 
-func (v *values) Merge(release *v1alpha1.VirtualClusterHelmRelease, logger loghelper.Logger) (string, error) {
+func (v *values) Merge(release *v1alpha1.VirtualClusterHelmRelease, logger loghelper.Logger) (string, string, error) {
 	valuesObj := map[string]interface{}{}
 	values := release.Values
 	if values != "" {
 		err := yaml.Unmarshal([]byte(values), &valuesObj)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 	}
 
 	defaultValues, err := v.getVClusterDefaultValues(release, logger)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	finalValues := mergeMaps(defaultValues, valuesObj)
+	mergedValues := mergeMaps(defaultValues, valuesObj)
 
-	out, err := yaml.Marshal(finalValues)
+	out, err := yaml.Marshal(mergedValues)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
+	finalValues := string(out)
+	finalK8sVersion := getK8sImageVersionFromValues(finalValues)
 
-	return string(out), nil
+	return finalK8sVersion, finalValues, nil
 }
 
 func (v *values) getVClusterDefaultValues(release *v1alpha1.VirtualClusterHelmRelease, logger loghelper.Logger) (map[string]interface{}, error) {
@@ -88,4 +92,20 @@ func mergeMaps(a, b map[string]interface{}) map[string]interface{} {
 		out[k] = v
 	}
 	return out
+}
+
+func getK8sImageVersionFromValues(values string) string {
+	vclusterIdx := strings.Index(values, "vcluster:") // k0s, k3s
+	if vclusterIdx == -1 {
+		vclusterIdx = strings.Index(values, "api:") // k8s, eks
+	}
+	imageAnchor := "image:"
+	imageIdx := strings.Index(values[vclusterIdx:], imageAnchor)
+
+	start := vclusterIdx + imageIdx + len(imageAnchor)
+	end := start + strings.Index(values[start:], "\n")
+	image := strings.ReplaceAll(values[start:end], " ", "")
+	valuesK8sVersion := strings.TrimPrefix(strings.Split(image, ":")[1], "v")
+
+	return valuesK8sVersion
 }
