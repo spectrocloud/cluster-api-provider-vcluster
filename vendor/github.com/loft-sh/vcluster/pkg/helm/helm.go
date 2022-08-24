@@ -35,8 +35,9 @@ type UpgradeOptions struct {
 	Password string
 	WorkDir  string
 
-	Atomic bool
-	Force  bool
+	Insecure bool
+	Atomic   bool
+	Force    bool
 }
 
 // Client defines the interface how to interact with helm
@@ -111,6 +112,9 @@ func (c *client) run(ctx context.Context, name, namespace string, options Upgrad
 
 	if options.CreateNamespace {
 		args = append(args, "--create-namespace")
+	}
+	if options.Insecure {
+		args = append(args, "--insecure-skip-tls-verify")
 	}
 
 	args = append(args, "--kubeconfig", kubeConfig, "--namespace", namespace)
@@ -197,9 +201,8 @@ func (c *client) run(ctx context.Context, name, namespace string, options Upgrad
 	output, err := cmd.CombinedOutput()
 
 	if ctx.Err() == context.DeadlineExceeded {
-		return fmt.Errorf("error executing helm %s: operation timedout", command)
+		return fmt.Errorf("error executing helm %s: %s operation timedout", string(output), command)
 	}
-
 	if err != nil {
 		return fmt.Errorf("error executing helm %s: %s", strings.Join(args, " "), string(output))
 	}

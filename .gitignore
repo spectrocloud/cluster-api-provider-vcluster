@@ -28,7 +28,9 @@ testbin/*
 # release dir where infrastructure-components.yaml and other release artifacts will be created
 /release/
 
-# devlopment tmp files
+# development tmp files
 /.devspace/
 devvalues.yaml
 kubeconfig.yaml
+
+config/manager/secret.yaml

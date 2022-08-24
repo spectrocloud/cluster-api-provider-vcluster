@@ -5,20 +5,20 @@
   "version": "0.2.0",
   "configurations": [
       {
-        "name": "Debug (localhost:2348)",
+        "name": "Debug (localhost:2345)",
         "type": "go",
         "request": "attach",
         "mode": "remote",
-        "port": 2348,
+        "port": 2345,
         "host": "localhost",
         "substitutePath": [
           {
             "from": "${workspaceFolder}",
-            "to": "/workspace",
+            "to": "/devspace",
           },
         ],
         "showLog": true,
-        //"trace": "verbose", // use for debugging problems with delve (breakpoints not working, etc.)
+        "trace": "verbose", // use for debugging problems with delve (breakpoints not working, etc.)
       },
   ]
 }

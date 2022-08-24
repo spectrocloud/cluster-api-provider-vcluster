@@ -1,7 +1,7 @@
 
-TAG ?= main
+IMG_TAG ?= latest
 # Image URL to use all building/pushing image targets
-IMG ?= docker.io/loftsh/cluster-api-provider-vcluster:$(TAG)
+IMG ?= gcr.io/spectro-common-dev/${USER}/cluster-api-provider-nested/nested-controller:$(IMG_TAG)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
 
@@ -77,6 +77,15 @@ docker-build: test ## Build docker image with the manager.
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
+
+.PHONY: docker
+docker: ## Build & push docker image with the manager.
+	docker build -t ${IMG} .
+	docker push ${IMG}
+
+.PHONY: docker-build-dev
+docker-build-dev: ## Build docker dev image with the manager.
+	docker build -f ./Dockerfile.dev -t ${IMG} .
 
 ##@ Deployment
 
