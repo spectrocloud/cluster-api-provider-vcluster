@@ -22,6 +22,7 @@ import (
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
+	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"github.com/loft-sh/vcluster/pkg/util/loghelper"
@@ -96,9 +97,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	rawConfig, err := kubeconfighelper.ConvertRestConfigToRawConfig(mgr.GetConfig())
+	restConfig := mgr.GetConfig()
+
+	rawConfig, err := kubeconfighelper.ConvertRestConfigToRawConfig(restConfig)
 	if err != nil {
 		setupLog.Error(err, "unable to get config")
+		os.Exit(1)
+	}
+
+	clientSet, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		setupLog.Error(err, "unable to get client set")
 		os.Exit(1)
 	}
 
@@ -111,6 +120,7 @@ func main() {
 	} else {
 		if err = (&controllers.VClusterReconciler{
 			Client:      mgr.GetClient(),
+			Clientset:   clientSet,
 			HelmClient:  helm.NewClient(rawConfig),
 			HelmSecrets: helm.NewSecrets(mgr.GetClient()),
 			Log:         loghelper.New("vcluster-controller"),

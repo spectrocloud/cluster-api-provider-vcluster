@@ -25,6 +25,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/loft-sh/vcluster/cmd/vclusterctl/log"
+	vconstants "github.com/loft-sh/vcluster/pkg/constants"
+	"github.com/loft-sh/vcluster/pkg/lifecycle"
 	"github.com/loft-sh/vcluster/pkg/util"
 	"github.com/loft-sh/vcluster/pkg/util/kubeconfig"
 	"github.com/loft-sh/vcluster/pkg/util/loghelper"
@@ -57,6 +60,7 @@ import (
 // VClusterReconciler reconciles a VCluster object
 type VClusterReconciler struct {
 	client.Client
+	*kubernetes.Clientset
 	HelmClient        helm.Client
 	HelmSecrets       *helm.Secrets
 	Log               loghelper.Logger
@@ -169,6 +173,21 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 		}
 	}()
 
+	// check if we have to pause
+	err = r.pauseIfNeeded(ctx, vCluster)
+	if err != nil {
+		r.Log.Errorf("error during virtual cluster pause %s/%s: %v", vCluster.Namespace, vCluster.Name, err)
+		conditions.MarkFalse(vCluster, v1alpha1.PausedCondition, "Paused", v1alpha1.ConditionSeverityError, "%v", err)
+		return ctrl.Result{RequeueAfter: time.Second * 5}, err
+	}
+
+	// check if we have to resume
+	err = r.resumeIfNeeded(ctx, vCluster)
+	if err != nil {
+		r.Log.Errorf("error during virtual cluster resume %s/%s: %v", vCluster.Namespace, vCluster.Name, err)
+		return ctrl.Result{RequeueAfter: time.Second * 5}, err
+	}
+
 	// check if we have to redeploy
 	err = r.redeployIfNeeded(ctx, vCluster)
 	if err != nil {
@@ -214,6 +233,35 @@ func (r *VClusterReconciler) reconcilePhase(vCluster *v1alpha1.VCluster) {
 			break
 		}
 	}
+}
+
+func (r *VClusterReconciler) pauseIfNeeded(ctx context.Context, vCluster *v1alpha1.VCluster) error {
+	v, ok := vCluster.Annotations[vconstants.PausedAnnotation]
+	if !ok || v != "true" {
+		return nil
+	}
+
+	if err := lifecycle.PauseVCluster(r.Clientset, vCluster.Name, vCluster.Namespace, log.GetInstance()); err != nil {
+		return err
+	}
+
+	conditions.MarkTrue(vCluster, v1alpha1.PausedCondition)
+	return nil
+}
+
+func (r *VClusterReconciler) resumeIfNeeded(ctx context.Context, vCluster *v1alpha1.VCluster) error {
+	v, ok := vCluster.Annotations[vconstants.PausedAnnotation]
+	if !ok || v != "true" {
+		return nil
+	}
+
+	if err := lifecycle.ResumeVCluster(r.Clientset, vCluster.Name, vCluster.Namespace, log.GetInstance()); err != nil {
+		return err
+	}
+
+	vCluster.Annotations[vconstants.PausedAnnotation] = "false"
+	conditions.MarkFalse(vCluster, v1alpha1.PausedCondition, "Resumed", v1alpha1.ConditionSeverityInfo, "Resumed")
+	return nil
 }
 
 func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1alpha1.VCluster) error {
