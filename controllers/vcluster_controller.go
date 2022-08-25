@@ -322,8 +322,8 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 
 		// delete failed releases so that installation is attempted each iteration
 		if strings.Contains(err.Error(), "has no deployed releases") {
-			if err = r.HelmClient.Delete(vCluster.Name, vCluster.Namespace); err != nil {
-				r.Log.Errorf("error deleting helm release: %v", err)
+			if delErr := r.HelmClient.Delete(vCluster.Name, vCluster.Namespace); delErr != nil {
+				r.Log.Errorf("error deleting helm release: %v", delErr)
 			}
 		}
 
