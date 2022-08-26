@@ -52,7 +52,7 @@ func PauseVCluster(kubeClient *kubernetes.Clientset, name, namespace string, log
 	return nil
 }
 
-func DeleteVClusterWorkloads(kubeClient kubernetes.Interface, labelSelector, namespace string, log log.Logger) error {
+func DeleteVClusterWorkloads(kubeClient *kubernetes.Clientset, labelSelector, namespace string, log log.Logger) error {
 	list, err := kubeClient.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelSelector})
 	if err != nil {
 		return err

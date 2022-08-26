@@ -188,6 +188,13 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 		return ctrl.Result{RequeueAfter: time.Second * 5}, err
 	}
 
+	// if vCluster is paused, skip remaining reconciliation
+	if conditions.IsTrue(vCluster, v1alpha1.PausedCondition) {
+		r.Log.Infof("skipping remaining reconciliation for paused virtual cluster: %s/%s", vCluster.Namespace, vCluster.Name)
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+	}
+	r.Log.Infof("reconciling deployment, kubeconfig & health for active virtual cluster: %s/%s", vCluster.Namespace, vCluster.Name)
+
 	// check if we have to redeploy
 	err = r.redeployIfNeeded(ctx, vCluster)
 	if err != nil {
@@ -241,17 +248,22 @@ func (r *VClusterReconciler) pauseIfNeeded(ctx context.Context, vCluster *v1alph
 		return nil
 	}
 
-	if err := lifecycle.PauseVCluster(r.Clientset, vCluster.Name, vCluster.Namespace, log.GetInstance()); err != nil {
+	logger := log.GetInstance()
+	if err := lifecycle.PauseVCluster(r.Clientset, vCluster.Name, vCluster.Namespace, logger); err != nil {
+		return err
+	}
+	if err := lifecycle.DeleteVClusterWorkloads(r.Clientset, "vcluster.loft.sh/managed-by="+vCluster.Name, vCluster.Namespace, logger); err != nil {
 		return err
 	}
 
 	conditions.MarkTrue(vCluster, v1alpha1.PausedCondition)
+	r.Log.Infof("paused virtual cluster: %s/%s", vCluster.Namespace, vCluster.Name)
 	return nil
 }
 
 func (r *VClusterReconciler) resumeIfNeeded(ctx context.Context, vCluster *v1alpha1.VCluster) error {
 	v, ok := vCluster.Annotations[vconstants.PausedAnnotation]
-	if !ok || v != "true" {
+	if !ok || v != "false" || !conditions.IsTrue(vCluster, v1alpha1.PausedCondition) {
 		return nil
 	}
 
@@ -259,8 +271,8 @@ func (r *VClusterReconciler) resumeIfNeeded(ctx context.Context, vCluster *v1alp
 		return err
 	}
 
-	vCluster.Annotations[vconstants.PausedAnnotation] = "false"
 	conditions.MarkFalse(vCluster, v1alpha1.PausedCondition, "Resumed", v1alpha1.ConditionSeverityInfo, "Resumed")
+	r.Log.Infof("resumed virtual cluster: %s/%s", vCluster.Namespace, vCluster.Name)
 	return nil
 }
 
