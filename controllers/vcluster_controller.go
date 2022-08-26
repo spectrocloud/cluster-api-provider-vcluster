@@ -338,7 +338,7 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 	}
 
 	//TODO: if .spec.controlPlaneEndpoint.Host is set it would be nice to pass it as --tls-san flag of syncer
-	values, err := vclustervalues.NewValuesMerger(
+	valuesK8sVersion, values, err := vclustervalues.NewValuesMerger(
 		kVersion,
 	).Merge(&v1alpha1.VirtualClusterHelmRelease{
 		Chart: v1alpha1.VirtualClusterHelmChart{
@@ -350,6 +350,10 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 	}, r.Log)
 	if err != nil {
 		return fmt.Errorf("merge values: %v", err)
+	}
+	if valuesK8sVersion != kVersion.String() {
+		vCluster.Spec.KubernetesVersion = &valuesK8sVersion
+		r.Log.Infof("Overriding virtual cluster kubernetes version to %s, based on values provided", valuesK8sVersion)
 	}
 
 	r.Log.Infof("Deploy virtual cluster %s/%s with values: %s", vCluster.Namespace, vCluster.Name, values)
@@ -379,7 +383,7 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 		// delete failed releases so that installation is attempted each iteration
 		if strings.Contains(err.Error(), "has no deployed releases") {
 			if delErr := r.HelmClient.Delete(vCluster.Name, vCluster.Namespace); delErr != nil {
-				r.Log.Errorf("error deleting helm release: %v", err)
+				r.Log.Errorf("error deleting helm release: %v", delErr)
 			}
 		}
 

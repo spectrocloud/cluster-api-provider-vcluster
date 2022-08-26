@@ -43,9 +43,10 @@ func (r *VCluster) ValidateUpdate(old runtime.Object) error {
 	vclusterlog.Info("validate update", "name", r.Name)
 	oldVcluster := old.(*VCluster)
 
-	if *r.Spec.KubernetesVersion != *oldVcluster.Spec.KubernetesVersion {
-		return apierrors.NewBadRequest(fmt.Sprintf("vcluster k8s version change is not allowed, old=%s, new=%s", *oldVcluster.Spec.KubernetesVersion, *r.Spec.KubernetesVersion))
+	if r.Name != oldVcluster.Name {
+		return apierrors.NewBadRequest(fmt.Sprintf("vcluster name change is not allowed, old=%s, new=%s", oldVcluster.Name, r.Name))
 	}
+
 	return nil
 }
 
