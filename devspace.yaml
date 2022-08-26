@@ -19,12 +19,12 @@ images:
         useBuildKit: true
 
 deployments:
-- name: nested-controller
-  namespace: cluster-api-provider-vcluster-system
+- name: controller-manager
+  namespace: cluster-63078898a671a598d086962e
   kubectl:
     kustomize: true
     manifests:
-    - config/default
+    - config/devspace
 
 dev:
   terminal:
@@ -37,8 +37,8 @@ dev:
     - port: 2345
   sync:
   - labelSelector:
-      control-plane: controller-manager
-    containerPath: /devspace
+      control-plane: cluster-api-provider-vcluster-controller-manager
+    containerPath: /
     excludePaths:
       - '**'
       - '!/pkg'
