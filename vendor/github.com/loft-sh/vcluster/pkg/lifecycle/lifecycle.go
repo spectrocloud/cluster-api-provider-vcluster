@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/loft-sh/vcluster/cmd/vclusterctl/log"
 	"github.com/loft-sh/vcluster/pkg/constants"
+	log "github.com/loft-sh/vcluster/pkg/util/loghelper"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -250,7 +250,7 @@ func scaleUpDeployment(kubeClient kubernetes.Interface, labelSelector string, na
 		if item.Annotations[constants.PausedReplicasAnnotation] != "" {
 			replicas, err = strconv.Atoi(item.Annotations[constants.PausedReplicasAnnotation])
 			if err != nil {
-				log.Warnf("error parsing old replicas: %v", err)
+				log.Errorf("error parsing old replicas: %v", err)
 				replicas = 1
 			}
 		}
@@ -295,7 +295,7 @@ func scaleUpStatefulSet(kubeClient kubernetes.Interface, labelSelector string, n
 		if item.Annotations[constants.PausedReplicasAnnotation] != "" {
 			replicas, err = strconv.Atoi(item.Annotations[constants.PausedReplicasAnnotation])
 			if err != nil {
-				log.Warnf("error parsing old replicas: %v", err)
+				log.Errorf("error parsing old replicas: %v", err)
 				replicas = 1
 			}
 		}

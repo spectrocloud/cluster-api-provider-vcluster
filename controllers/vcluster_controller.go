@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/loft-sh/vcluster/cmd/vclusterctl/log"
 	vconstants "github.com/loft-sh/vcluster/pkg/constants"
 	"github.com/loft-sh/vcluster/pkg/lifecycle"
 	"github.com/loft-sh/vcluster/pkg/util"
@@ -248,11 +247,10 @@ func (r *VClusterReconciler) pauseIfNeeded(ctx context.Context, vCluster *v1alph
 		return nil
 	}
 
-	logger := log.GetInstance()
-	if err := lifecycle.PauseVCluster(r.Clientset, vCluster.Name, vCluster.Namespace, logger); err != nil {
+	if err := lifecycle.PauseVCluster(r.Clientset, vCluster.Name, vCluster.Namespace, r.Log); err != nil {
 		return err
 	}
-	if err := lifecycle.DeleteVClusterWorkloads(r.Clientset, "vcluster.loft.sh/managed-by="+vCluster.Name, vCluster.Namespace, logger); err != nil {
+	if err := lifecycle.DeleteVClusterWorkloads(r.Clientset, "vcluster.loft.sh/managed-by="+vCluster.Name, vCluster.Namespace, r.Log); err != nil {
 		return err
 	}
 
@@ -267,7 +265,7 @@ func (r *VClusterReconciler) resumeIfNeeded(ctx context.Context, vCluster *v1alp
 		return nil
 	}
 
-	if err := lifecycle.ResumeVCluster(r.Clientset, vCluster.Name, vCluster.Namespace, log.GetInstance()); err != nil {
+	if err := lifecycle.ResumeVCluster(r.Clientset, vCluster.Name, vCluster.Namespace, r.Log); err != nil {
 		return err
 	}
 
