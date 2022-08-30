@@ -84,8 +84,9 @@ docker: ## Build & push docker image with the manager.
 	docker push ${IMG}
 
 .PHONY: docker-build-dev
-docker-build-dev: ## Build docker dev image with the manager.
+docker-build-dev: ## Build & push docker dev image with the manager.
 	docker build -f ./Dockerfile.dev -t ${IMG} .
+	docker push ${IMG}
 
 ##@ Deployment
 
