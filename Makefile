@@ -1,7 +1,8 @@
+IMG_NAME ?= cluster-api-nested-controller
+IMG_URL ?= gcr.io/spectro-dev-public/release/cluster-api-nested
+IMG_TAG ?= v0.1.2-spectro-20220830
+IMG ?= $(IMG_URL)/$(IMG_NAME):$(IMG_TAG)
 
-IMG_TAG ?= latest
-# Image URL to use all building/pushing image targets
-IMG ?= gcr.io/spectro-common-dev/${USER}/cluster-api-provider-nested/nested-controller:$(IMG_TAG)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
 
