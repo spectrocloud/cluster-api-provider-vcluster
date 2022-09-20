@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    control-plane: capvc-controller-manager
+  name: cluster-api-provider-capvc-system
+---
+apiVersion: v1
+data:
+  controller_manager_config.yaml: |
+    apiVersion: controller-runtime.sigs.k8s.io/v1alpha1
+    kind: ControllerManagerConfig
+    health:
+      healthProbeBindAddress: :8081
+    metrics:
+      bindAddress: 127.0.0.1:8080
+    webhook:
+      port: 9443
+    leaderElection:
+      leaderElect: true
+      resourceName: 4012c7fa.cluster.x-k8s.io
+kind: ConfigMap
+metadata:
+  labels:
+    control-plane: capvc-controller-manager
+  name: capvc-manager-config
+  namespace: cluster-api-provider-capvc-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    control-plane: capvc-controller-manager
+  name: capvc-controller-manager
+  namespace: cluster-api-provider-capvc-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: capvc-controller-manager
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: capvc-controller-manager
+    spec:
+      containers:
+      - args:
+        - --leader-elect
+        command:
+        - /manager
+        image: gcr.io/spectro-images-public/release/cluster-api-nested/cluster-api-nested-controller:latest
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      serviceAccountName: controller-manager
+      terminationGracePeriodSeconds: 10
