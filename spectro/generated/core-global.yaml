@@ -243,7 +243,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: gcr.io/spectro-images-public/release/cluster-api-nested/cluster-api-nested-controller:latest
+        image: gcr.io/spectro-images-public/release/cluster-api-virtual/cluster-api-virtual-controller:latest
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
@@ -264,7 +264,8 @@ spec:
           periodSeconds: 10
         resources:
           limits:
-            memory: 1Gi
+            cpu: 500m
+            memory: 128Mi
           requests:
             cpu: 10m
             memory: 64Mi
@@ -277,7 +278,6 @@ spec:
         - mountPath: /tmp/k8s-webhook-server/serving-certs
           name: cert
           readOnly: true
-      serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
       volumes:
       - name: cert

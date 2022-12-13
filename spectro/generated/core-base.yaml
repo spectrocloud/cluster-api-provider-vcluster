@@ -50,7 +50,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: gcr.io/spectro-images-public/release/cluster-api-nested/cluster-api-nested-controller:latest
+        image: gcr.io/spectro-images-public/release/cluster-api-virtual/cluster-api-virtual-controller:latest
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
@@ -67,14 +67,16 @@ spec:
           periodSeconds: 10
         resources:
           limits:
-            memory: 1Gi
+            cpu: 200m
+            memory: 256Mi
+            ephemeral-storage: 1Gi
           requests:
             cpu: 10m
             memory: 64Mi
+            ephemeral-storage: 64Mi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
             - ALL
-      serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10

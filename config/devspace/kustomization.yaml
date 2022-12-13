@@ -23,7 +23,7 @@ patchesStrategicMerge:
           - /bin/bash
           - -c
           - --
-          image: gcr.io/spectro-common-dev/tylergillson/cluster-api-provider-nested/nested-controller:dev
+          image: gcr.io/spectro-common-dev/tylergillson/cluster-api-provider-virtual/virtual-controller:dev
           imagePullPolicy: Always
           livenessProbe: null
           readinessProbe: null
