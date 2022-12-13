@@ -1,6 +1,6 @@
 IMG_NAME ?= cluster-api-nested-controller
 IMG_URL ?= gcr.io/spectro-dev-public/release/cluster-api-nested
-IMG_TAG ?= v0.1.2-spectro-20220830
+IMG_TAG ?= v0.1.3-spectro-20221213
 IMG ?= $(IMG_URL)/$(IMG_NAME):$(IMG_TAG)
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
@@ -72,7 +72,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: docker-build
-docker-build: test ## Build docker image with the manager.
+docker-build: ## Build docker image with the manager.
 	docker build -t ${IMG} .
 
 .PHONY: docker-push
