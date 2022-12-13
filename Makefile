@@ -1,5 +1,5 @@
-IMG_NAME ?= cluster-api-nested-controller
-IMG_URL ?= gcr.io/spectro-dev-public/release/cluster-api-nested
+IMG_NAME ?= cluster-api-virtual-controller
+IMG_URL ?= gcr.io/spectro-dev-public/release/cluster-api-virtual
 IMG_TAG ?= v0.1.3-spectro-20221213
 IMG ?= $(IMG_URL)/$(IMG_NAME):$(IMG_TAG)
 
