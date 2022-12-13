@@ -3,7 +3,6 @@ package helm
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -14,8 +13,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
-
-var CommandPath = "helm"
 
 // UpgradeOptions holds all the options for upgrading / installing a chart
 type UpgradeOptions struct {
@@ -58,11 +55,11 @@ type client struct {
 }
 
 // NewClient creates a new helm client from the given config
-func NewClient(config *clientcmdapi.Config, log log.Logger) Client {
+func NewClient(config *clientcmdapi.Config, log log.Logger, commandPath string) Client {
 	return &client{
 		config:   config,
 		log:      log,
-		helmPath: CommandPath,
+		helmPath: commandPath,
 	}
 }
 
@@ -123,7 +120,7 @@ func (c *client) run(ctx context.Context, name, namespace string, options Upgrad
 	// Values
 	if options.Values != "" {
 		// Create temp file
-		tempFile, err := ioutil.TempFile("", "")
+		tempFile, err := os.CreateTemp("", "")
 		if err != nil {
 			return errors.Wrap(err, "create temp file")
 		}
@@ -271,7 +268,7 @@ func WriteKubeConfig(configRaw *clientcmdapi.Config) (string, error) {
 	}
 
 	// Create temp file
-	tempFile, err := ioutil.TempFile("", "")
+	tempFile, err := os.CreateTemp("", "")
 	if err != nil {
 		return "", errors.Wrap(err, "create temp file")
 	}

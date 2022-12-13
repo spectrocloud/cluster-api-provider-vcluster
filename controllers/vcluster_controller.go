@@ -25,11 +25,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/loft-sh/utils/pkg/log"
 	vconstants "github.com/loft-sh/vcluster/pkg/constants"
 	"github.com/loft-sh/vcluster/pkg/lifecycle"
 	"github.com/loft-sh/vcluster/pkg/util"
 	"github.com/loft-sh/vcluster/pkg/util/kubeconfig"
-	"github.com/loft-sh/vcluster/pkg/util/loghelper"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -62,7 +62,7 @@ type VClusterReconciler struct {
 	*kubernetes.Clientset
 	HelmClient        helm.Client
 	HelmSecrets       *helm.Secrets
-	Log               loghelper.Logger
+	Log               log.Logger
 	Scheme            *runtime.Scheme
 	clusterKindExists bool
 }

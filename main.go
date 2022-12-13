@@ -25,7 +25,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	"github.com/loft-sh/vcluster/pkg/util/loghelper"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -123,7 +122,6 @@ func main() {
 			Clientset:   clientSet,
 			HelmClient:  helm.NewClient(rawConfig),
 			HelmSecrets: helm.NewSecrets(mgr.GetClient()),
-			Log:         loghelper.New("vcluster-controller"),
 			Scheme:      mgr.GetScheme(),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "VCluster")
