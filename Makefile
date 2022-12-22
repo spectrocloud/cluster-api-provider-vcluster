@@ -12,6 +12,8 @@ GOBIN=$(shell go env GOPATH)/bin
 else
 GOBIN=$(shell go env GOBIN)
 endif
+GOARCH ?= $(shell go env GOARCH)
+GOOS ?= $(shell go env GOOS)
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
@@ -21,6 +23,10 @@ SHELL = /usr/bin/env bash -o pipefail
 
 .PHONY: all
 all: build
+
+BIN_DIR ?= ./bin
+bin-dir:
+	test -d $(BIN_DIR) || mkdir $(BIN_DIR)
 
 ##@ General
 
@@ -72,7 +78,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: docker-build
-docker-build: ## Build docker image with the manager.
+docker-build: binaries ## Build docker image with the manager.
 	docker build -t ${IMG} .
 
 .PHONY: docker-push
@@ -80,12 +86,10 @@ docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
 .PHONY: docker
-docker: ## Build & push docker image with the manager.
-	docker build -t ${IMG} .
-	docker push ${IMG}
+docker: binaries docker-build docker-push ## Build & push docker image with the manager.
 
 .PHONY: docker-build-dev
-docker-build-dev: ## Build & push docker dev image with the manager.
+docker-build-dev: binaries ## Build & push docker dev image with the manager.
 	docker build -f ./Dockerfile.dev -t ${IMG} .
 	docker push ${IMG}
 
@@ -154,3 +158,18 @@ release: manifests kustomize ## Builds the manifests to publish with a release.
 	sed -i'' -e 's@image: .*@image: docker.io/loftsh/cluster-api-provider-vcluster:main@' ./config/default/manager_image_patch.yaml
 	sed -i'' -e 's@imagePullPolicy: '"$(PULL_POLICY)"'@imagePullPolicy: IfNotPresent@' ./config/default/manager_pull_policy_patch.yaml
 	sed -i'' -e 's@name: $${CLUSTER_ROLE:=cluster-admin}@name: cluster-admin@' ./config/rbac/provider_role_binding.yaml
+
+##@ Binaries
+
+.PHONY: binaries
+binaries: helm
+
+.PHONY: helm
+helm: bin-dir
+	if ! test -f  $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); then \
+		curl -L https://get.helm.sh/helm-v3.10.3-$(GOOS)-$(GOARCH).tar.gz | tar xz; \
+		mv $(GOOS)-$(GOARCH)/helm $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); \
+		chmod +x $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); \
+		rm -rf ./$(GOOS)-$(GOARCH)/; \
+	fi
+HELM=$(BIN_DIR)/helm-$(GOOS)-$(GOARCH)

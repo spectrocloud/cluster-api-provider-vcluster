@@ -1,28 +1,20 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  labels:
-    control-plane: cluster-api-provider-vcluster-controller-manager
-  name: system
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: controller-manager
-  namespace: system
+  name: capvc-controller-manager
   labels:
-    control-plane: cluster-api-provider-vcluster-controller-manager
+    control-plane: capvc-controller-manager
 spec:
   selector:
     matchLabels:
-      control-plane: cluster-api-provider-vcluster-controller-manager
+      control-plane: capvc-controller-manager
   replicas: 1
   template:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
       labels:
-        control-plane: cluster-api-provider-vcluster-controller-manager
+        control-plane: capvc-controller-manager
     spec:
       containers:
       - command:
@@ -48,13 +40,13 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
-        # TODO(user): Configure the resources accordingly based on the project requirements.
-        # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
         resources:
           limits:
-            memory: 1Gi
+            cpu: 200m
+            memory: 256Mi
+            ephemeral-storage: 1Gi
           requests:
             cpu: 10m
             memory: 64Mi
-      serviceAccountName: controller-manager
+            ephemeral-storage: 64Mi
       terminationGracePeriodSeconds: 10

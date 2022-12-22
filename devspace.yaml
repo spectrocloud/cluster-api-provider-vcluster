@@ -12,15 +12,11 @@ images:
     tags:
     - dev
     rebuildStrategy: ignoreContextChanges
-    build:
-      docker:
-        #args:
-        #- "--no-cache"
-        useBuildKit: true
+    docker: {}
 
 deployments:
   capvc-controller:
-    namespace: cluster-63078898a671a598d086962e
+    namespace: cluster-63a24c1c0066396beecb9eca
     kubectl:
       kustomize: true
       manifests:
@@ -40,13 +36,14 @@ dev:
     - path: .:/
       excludePaths:
         - '**'
-        - '!/pkg'
         - '!/api'
-        - '!/controllers'
-        - '!/vendor'
-        - '!/hack'
         - '!/config'
+        - '!/controllers'
+        - '!/devspace_start.sh'
         - '!/go.mod'
         - '!/go.sum'
-        - '!/devspace_start.sh'
+        - '!/hack'
+        - '!/main.go'
+        - '!/pkg'
+        - '!/vendor'
         - 'Makefile'

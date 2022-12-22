@@ -1,6 +1,5 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: cluster-63078898a671a598d086962e
 resources:
 - ../manager
 patchesStrategicMerge:
@@ -8,8 +7,7 @@ patchesStrategicMerge:
   apiVersion: apps/v1
   kind: Deployment
   metadata:
-    name: controller-manager
-    namespace: system
+    name: capvc-controller-manager
   spec:
     template:
       spec:
@@ -30,23 +28,4 @@ patchesStrategicMerge:
           resources: null
           env:
           - name: NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
-        serviceAccount: default
-        serviceAccountName: default
-        tolerations:
-          - key: CriticalAddonsOnly
-            operator: Exists
-          - effect: NoSchedule
-            operator: "Exists"
-          - effect: NoExecute
-            operator: "Exists"
-- |-
-  apiVersion: v1
-  kind: Namespace
-  metadata:
-    labels:
-      control-plane: palette-controller-manager
-    name: system
-  $patch: delete
+            value: cluster-63a24c1c0066396beecb9eca
