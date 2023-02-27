@@ -1,6 +1,7 @@
 # Build the manager binary
 FROM golang:1.19 as builder
 
+ARG HELM=./bin/helm-linux-amd64
 ARG TARGETOS
 ARG TARGETARCH
 
@@ -9,13 +10,8 @@ WORKDIR /workspace
 # Install Delve for debugging
 RUN if [ "${TARGETARCH}" = "amd64" ]; then go install github.com/go-delve/delve/cmd/dlv@latest; fi
 
-# Install Helm 3
-RUN curl -s https://get.helm.sh/helm-v3.11.1-linux-amd64.tar.gz > helm3.tar.gz \
- && tar -zxvf helm3.tar.gz linux-amd64/helm \
- && chmod +x linux-amd64/helm \
- && mv linux-amd64/helm $PWD/helm \
- && rm helm3.tar.gz \
- && rm -R linux-amd64
+# Copy binaries
+COPY ${HELM} helm
 
 # Copy the Go Modules manifests
 COPY go.mod go.mod

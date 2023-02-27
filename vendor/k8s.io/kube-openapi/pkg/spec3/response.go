@@ -20,8 +20,8 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/go-openapi/swag"
 	"k8s.io/kube-openapi/pkg/validation/spec"
+	"github.com/go-openapi/swag"
 )
 
 // Responses holds the list of possible responses as they are returned from executing this operation
@@ -78,29 +78,20 @@ func (r ResponsesProps) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON unmarshals responses from JSON
 func (r *ResponsesProps) UnmarshalJSON(data []byte) error {
-	var res map[string]json.RawMessage
+	var res map[string]*Response
 	if err := json.Unmarshal(data, &res); err != nil {
-		return err
+		return nil
 	}
 	if v, ok := res["default"]; ok {
-		value := Response{}
-		if err := json.Unmarshal(v, &value); err != nil {
-			return err
-		}
-		r.Default = &value
+		r.Default = v
 		delete(res, "default")
 	}
 	for k, v := range res {
-		// Take all integral keys
 		if nk, err := strconv.Atoi(k); err == nil {
 			if r.StatusCodeResponses == nil {
 				r.StatusCodeResponses = map[int]*Response{}
 			}
-			value := Response{}
-			if err := json.Unmarshal(v, &value); err != nil {
-				return err
-			}
-			r.StatusCodeResponses[nk] = &value
+			r.StatusCodeResponses[nk] = v
 		}
 	}
 	return nil
@@ -157,6 +148,7 @@ type ResponseProps struct {
 	// Links is a map of operations links that can be followed from the response
 	Links map[string]*Link `json:"links,omitempty"`
 }
+
 
 // Link represents a possible design-time link for a response, more at https://swagger.io/specification/#link-object
 type Link struct {

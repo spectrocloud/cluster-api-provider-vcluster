@@ -19,10 +19,8 @@ package v1beta1
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -30,8 +28,6 @@ import (
 
 	"sigs.k8s.io/cluster-api/util/version"
 )
-
-const defaultNodeDeletionTimeout = 10 * time.Second
 
 func (m *Machine) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
@@ -64,10 +60,6 @@ func (m *Machine) Default() {
 		normalizedVersion := "v" + *m.Spec.Version
 		m.Spec.Version = &normalizedVersion
 	}
-
-	if m.Spec.NodeDeletionTimeout == nil {
-		m.Spec.NodeDeletionTimeout = &metav1.Duration{Duration: defaultNodeDeletionTimeout}
-	}
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
@@ -91,12 +83,11 @@ func (m *Machine) ValidateDelete() error {
 
 func (m *Machine) validate(old *Machine) error {
 	var allErrs field.ErrorList
-	specPath := field.NewPath("spec")
 	if m.Spec.Bootstrap.ConfigRef == nil && m.Spec.Bootstrap.DataSecretName == nil {
 		allErrs = append(
 			allErrs,
 			field.Required(
-				specPath.Child("bootstrap", "data"),
+				field.NewPath("spec", "bootstrap", "data"),
 				"expected either spec.bootstrap.dataSecretName or spec.bootstrap.configRef to be populated",
 			),
 		)
@@ -106,7 +97,7 @@ func (m *Machine) validate(old *Machine) error {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
-				specPath.Child("bootstrap", "configRef", "namespace"),
+				field.NewPath("spec", "bootstrap", "configRef", "namespace"),
 				m.Spec.Bootstrap.ConfigRef.Namespace,
 				"must match metadata.namespace",
 			),
@@ -117,7 +108,7 @@ func (m *Machine) validate(old *Machine) error {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
-				specPath.Child("infrastructureRef", "namespace"),
+				field.NewPath("spec", "infrastructureRef", "namespace"),
 				m.Spec.InfrastructureRef.Namespace,
 				"must match metadata.namespace",
 			),
@@ -127,13 +118,13 @@ func (m *Machine) validate(old *Machine) error {
 	if old != nil && old.Spec.ClusterName != m.Spec.ClusterName {
 		allErrs = append(
 			allErrs,
-			field.Forbidden(specPath.Child("clusterName"), "field is immutable"),
+			field.Invalid(field.NewPath("spec", "clusterName"), m.Spec.ClusterName, "field is immutable"),
 		)
 	}
 
 	if m.Spec.Version != nil {
 		if !version.KubeSemver.MatchString(*m.Spec.Version) {
-			allErrs = append(allErrs, field.Invalid(specPath.Child("version"), *m.Spec.Version, "must be a valid semantic version"))
+			allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "version"), *m.Spec.Version, "must be a valid semantic version"))
 		}
 	}
 

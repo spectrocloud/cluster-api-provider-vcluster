@@ -24,9 +24,9 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	"github.com/loft-sh/vcluster/pkg/util/loghelper"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -36,6 +36,7 @@ import (
 	"github.com/loft-sh/cluster-api-provider-vcluster/controllers"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
+	"github.com/loft-sh/vcluster/cmd/vclusterctl/log"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -96,9 +97,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	rawConfig, err := kubeconfighelper.ConvertRestConfigToRawConfig(mgr.GetConfig())
+	restConfig := mgr.GetConfig()
+
+	rawConfig, err := kubeconfighelper.ConvertRestConfigToRawConfig(restConfig)
 	if err != nil {
 		setupLog.Error(err, "unable to get config")
+		os.Exit(1)
+	}
+
+	clientSet, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		setupLog.Error(err, "unable to get client set")
 		os.Exit(1)
 	}
 
@@ -111,9 +120,10 @@ func main() {
 	} else {
 		if err = (&controllers.VClusterReconciler{
 			Client:      mgr.GetClient(),
+			Clientset:   clientSet,
 			HelmClient:  helm.NewClient(rawConfig),
 			HelmSecrets: helm.NewSecrets(mgr.GetClient()),
-			Log:         loghelper.New("vcluster-controller"),
+			Log:         log.GetInstance(),
 			Scheme:      mgr.GetScheme(),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "VCluster")

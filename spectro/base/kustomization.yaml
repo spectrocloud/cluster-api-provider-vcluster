@@ -1,0 +1,13 @@
+namespace: cluster-api-provider-capvc-system
+
+namePrefix: capvc-
+
+commonLabels:
+  control-plane: capvc-controller-manager
+
+bases:
+  - ../../config/manager
+
+patchesStrategicMerge:
+  - ../../config/default/manager_image_patch.yaml
+  - ../../config/default/manager_pull_policy_patch.yaml

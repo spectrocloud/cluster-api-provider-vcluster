@@ -4,16 +4,16 @@ import (
 	"strings"
 
 	"github.com/ghodss/yaml"
-	vclusterhelm "github.com/loft-sh/vcluster/pkg/helm"
-	vclustervalues "github.com/loft-sh/vcluster/pkg/helm/values"
-	"github.com/loft-sh/vcluster/pkg/util/loghelper"
+	vclusterhelm "github.com/loft-sh/utils/pkg/helm"
+	vclustervalues "github.com/loft-sh/utils/pkg/helm/values"
+	"github.com/loft-sh/utils/pkg/log"
 	"k8s.io/apimachinery/pkg/version"
 
 	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
 )
 
 type Values interface {
-	Merge(release *v1alpha1.VirtualClusterHelmRelease, logger loghelper.Logger) (string, string, error)
+	Merge(release *v1alpha1.VirtualClusterHelmRelease, logger log.Logger) (string, string, error)
 }
 
 func NewValuesMerger(kubernetesVersion *version.Info) Values {
@@ -26,7 +26,7 @@ type values struct {
 	kubernetesVersion *version.Info
 }
 
-func (v *values) Merge(release *v1alpha1.VirtualClusterHelmRelease, logger loghelper.Logger) (string, string, error) {
+func (v *values) Merge(release *v1alpha1.VirtualClusterHelmRelease, logger log.Logger) (string, string, error) {
 	valuesObj := map[string]interface{}{}
 	values := release.Values
 	if values != "" {
@@ -53,13 +53,16 @@ func (v *values) Merge(release *v1alpha1.VirtualClusterHelmRelease, logger loghe
 	return finalK8sVersion, finalValues, nil
 }
 
-func (v *values) getVClusterDefaultValues(release *v1alpha1.VirtualClusterHelmRelease, logger loghelper.Logger) (map[string]interface{}, error) {
+func (v *values) getVClusterDefaultValues(release *v1alpha1.VirtualClusterHelmRelease, logger log.Logger) (map[string]interface{}, error) {
 	valuesStr, err := vclustervalues.GetDefaultReleaseValues(
 		&vclusterhelm.ChartOptions{
-			ChartName:         release.Chart.Name,
-			ChartRepo:         release.Chart.Repo,
-			ChartVersion:      release.Chart.Version,
-			KubernetesVersion: v.kubernetesVersion,
+			ChartName:    release.Chart.Name,
+			ChartRepo:    release.Chart.Repo,
+			ChartVersion: release.Chart.Version,
+			KubernetesVersion: vclusterhelm.Version{
+				Major: v.kubernetesVersion.Major,
+				Minor: v.kubernetesVersion.Minor,
+			},
 		}, logger,
 	)
 	if err != nil {

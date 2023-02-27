@@ -104,8 +104,9 @@ func newBuildIdentifiers(ids []string) buildIdentifiers {
 func (v buildIdentifiers) compare(o buildIdentifiers) int {
 	i := 0
 	for ; i < len(v) && i < len(o); i++ {
-		comp := v[i].compare(o[i])
-		if comp != 0 {
+		if comp := v[i].compare(o[i]); comp == 0 {
+			continue
+		} else {
 			return comp
 		}
 	}
@@ -172,9 +173,24 @@ func (v buildIdentifier) compare(o buildIdentifier) int {
 	}
 }
 
+// CompareWithBuildIdentifiers compares two versions a and b.
+// Perfoms a standard version compare between a and b. If the versions
+// are equal, build identifiers will be used to compare further.
+//   -1 == a is less than b.
+//   0 == a is equal to b.
+//   1 == a is greater than b.
+// Deprecated: Use Compare(a, b, WithBuildTags()) instead.
+func CompareWithBuildIdentifiers(a semver.Version, b semver.Version) int {
+	if comp := a.Compare(b); comp != 0 {
+		return comp
+	}
+	biA := newBuildIdentifiers(a.Build)
+	biB := newBuildIdentifiers(b.Build)
+	return biA.compare(biB)
+}
+
 type comparer struct {
-	buildTags          bool
-	withoutPreReleases bool
+	buildTags bool
 }
 
 // CompareOption is a configuration option for Compare.
@@ -191,22 +207,13 @@ type CompareOption func(*comparer)
 // - Identifiers with letters or hyphens are compared only for equality, otherwise, 2 is returned given
 // that it is not possible to identify if lower or greater (non-numeric identifiers could be random build
 // identifiers).
-//
-//	-1 == a is less than b.
-//	0 == a is equal to b.
-//	1 == a is greater than b.
-//	2 == v is different than o (it is not possible to identify if lower or greater).
+//   -1 == a is less than b.
+//   0 == a is equal to b.
+//   1 == a is greater than b.
+//   2 == v is different than o (it is not possible to identify if lower or greater).
 func WithBuildTags() CompareOption {
 	return func(c *comparer) {
 		c.buildTags = true
-	}
-}
-
-// WithoutPreReleases modifies the version comparison to not consider pre-releases
-// when comparing versions.
-func WithoutPreReleases() CompareOption {
-	return func(c *comparer) {
-		c.withoutPreReleases = true
 	}
 }
 
@@ -221,18 +228,8 @@ func Compare(a, b semver.Version, options ...CompareOption) int {
 		o(c)
 	}
 
-	if c.withoutPreReleases {
-		a.Pre = nil
-		b.Pre = nil
-	}
-
 	if c.buildTags {
-		if comp := a.Compare(b); comp != 0 {
-			return comp
-		}
-		biA := newBuildIdentifiers(a.Build)
-		biB := newBuildIdentifiers(b.Build)
-		return biA.compare(biB)
+		return CompareWithBuildIdentifiers(a, b)
 	}
 	return a.Compare(b)
 }

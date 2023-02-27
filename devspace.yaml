@@ -1,53 +1,49 @@
-version: v1beta11
+name: capvc-controller
+version: v2beta1
 
 vars:
-- name: IMAGE
-  value: gcr.io/spectro-common-dev/tylergillson/cluster-api-provider-nested/nested-controller
+  IMAGE: gcr.io/spectro-common-dev/tylergillson/cluster-api-provider-virtual/virtual-controller
 
 images:
-  controller:
+  capvc-controller:
     createPullSecret: false
     dockerfile: ./Dockerfile.dev
     image: ${IMAGE}
     tags:
     - dev
     rebuildStrategy: ignoreContextChanges
-    build:
-      docker:
-        #args:
-        #- "--no-cache"
-        useBuildKit: true
+    docker: {}
 
 deployments:
-- name: nested-controller
-  namespace: cluster-api-provider-vcluster-system
-  kubectl:
-    kustomize: true
-    manifests:
-    - config/default
+  capvc-controller:
+    namespace: cluster-63a24c1c0066396beecb9eca
+    kubectl:
+      kustomize: true
+      manifests:
+      - config/devspace
 
 dev:
-  terminal:
+  capvc-controller:
     imageSelector: ${IMAGE}
-    command:
-    - ./devspace_start.sh
-  ports:
-  - imageSelector: ${IMAGE}
-    forward:
-    - port: 2345
-  sync:
-  - labelSelector:
-      control-plane: controller-manager
-    containerPath: /devspace
-    excludePaths:
-      - '**'
-      - '!/pkg'
-      - '!/api'
-      - '!/controllers'
-      - '!/vendor'
-      - '!/hack'
-      - '!/config'
-      - '!/go.mod'
-      - '!/go.sum'
-      - '!/devspace_start.sh'
-      - 'Makefile'
+    terminal:
+      enabled: true
+      disableReplace: true
+      workDir: /
+      command: ./devspace_start.sh
+    ports:
+    - port: "2345"
+    sync:
+    - path: .:/
+      excludePaths:
+        - '**'
+        - '!/api'
+        - '!/config'
+        - '!/controllers'
+        - '!/devspace_start.sh'
+        - '!/go.mod'
+        - '!/go.sum'
+        - '!/hack'
+        - '!/main.go'
+        - '!/pkg'
+        - '!/vendor'
+        - 'Makefile'

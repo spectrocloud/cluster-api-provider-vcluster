@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../manager
+patchesStrategicMerge:
+- |-
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: capvc-controller-manager
+  spec:
+    template:
+      spec:
+        imagePullSecrets:
+        - name: spectro-common-dev-image-pull-secret
+        containers:
+        - name: manager
+          args:
+          - while true; do sleep 30; done;
+          command:
+          - /bin/bash
+          - -c
+          - --
+          image: gcr.io/spectro-common-dev/tylergillson/cluster-api-provider-virtual/virtual-controller:dev
+          imagePullPolicy: Always
+          livenessProbe: null
+          readinessProbe: null
+          resources: null
+          env:
+          - name: NAMESPACE
+            value: cluster-63a24c1c0066396beecb9eca
