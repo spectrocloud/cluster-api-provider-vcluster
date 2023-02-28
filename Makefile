@@ -167,7 +167,7 @@ binaries: helm
 .PHONY: helm
 helm: bin-dir
 	if ! test -f  $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); then \
-		curl -L https://get.helm.sh/helm-v3.10.3-$(GOOS)-$(GOARCH).tar.gz | tar xz; \
+		curl -L https://get.helm.sh/helm-v3.11.1-$(GOOS)-$(GOARCH).tar.gz | tar xz; \
 		mv $(GOOS)-$(GOARCH)/helm $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); \
 		chmod +x $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); \
 		rm -rf ./$(GOOS)-$(GOARCH)/; \
