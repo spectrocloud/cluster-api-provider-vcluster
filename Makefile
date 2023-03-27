@@ -1,3 +1,8 @@
+# If you update this file, please follow:
+# https://suva.sh/posts/well-documented-makefiles/
+
+.DEFAULT_GOAL:=help
+
 IMG_NAME ?= cluster-api-virtual-controller
 IMG_URL ?= gcr.io/spectro-dev-public/release/cluster-api-virtual
 IMG_TAG ?= v0.1.3-spectro-20221213
@@ -167,7 +172,7 @@ binaries: helm
 .PHONY: helm
 helm: bin-dir
 	if ! test -f  $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); then \
-		curl -L https://get.helm.sh/helm-v3.11.1-$(GOOS)-$(GOARCH).tar.gz | tar xz; \
+		curl -Ls https://github.com/spectrocloud/helm/releases/download/v3.11.2-20230317.0030/helm_v3.11.2-20230317.0030_$(GOOS)_$(GOARCH).tar.gz | tar -xz; \
 		mv $(GOOS)-$(GOARCH)/helm $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); \
 		chmod +x $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); \
 		rm -rf ./$(GOOS)-$(GOARCH)/; \
