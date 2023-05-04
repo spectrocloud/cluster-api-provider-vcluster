@@ -172,7 +172,7 @@ binaries: helm
 .PHONY: helm
 helm: bin-dir
 	if ! test -f  $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); then \
-		curl -Ls https://github.com/spectrocloud/helm/releases/download/v3.11.2-20230317.0030/helm_v3.11.2-20230317.0030_$(GOOS)_$(GOARCH).tar.gz | tar -xz; \
+		curl -L https://get.helm.sh/helm-v3.11.3-$(GOOS)-$(GOARCH).tar.gz | tar xz; \
 		mv $(GOOS)-$(GOARCH)/helm $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); \
 		chmod +x $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); \
 		rm -rf ./$(GOOS)-$(GOARCH)/; \
