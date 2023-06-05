@@ -356,22 +356,32 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 
 	r.Log.Infof("Deploy virtual cluster %s/%s with values: %s", vCluster.Namespace, vCluster.Name, values)
 
+	// base Helm options
+	helmOpts := helm.UpgradeOptions{
+		Values:                values,
+		InsecureSkipTlsVerify: true,
+	}
+
+	helmUsername := os.Getenv("HELM_USERNAME")
+	helmPassword := os.Getenv("HELM_PASSWORD")
+
+	if helmUsername != "" && helmPassword != "" {
+		helmOpts.Username = helmUsername
+		helmOpts.Password = helmPassword
+	}
+
 	chartPath := "./" + chartName + "-" + chartVersion + ".tgz"
 	_, err = os.Stat(chartPath)
 	if err != nil {
-		// we have to upgrade / install the chart
-		err = r.HelmClient.Upgrade(vCluster.Name, vCluster.Namespace, helm.UpgradeOptions{
-			Chart:   chartName,
-			Repo:    chartRepo,
-			Version: chartVersion,
-			Values:  values,
-		})
+		// upgrade / install the chart (remote)
+		helmOpts.Chart = chartName
+		helmOpts.Repo = chartRepo
+		helmOpts.Version = chartVersion
+		err = r.HelmClient.Upgrade(vCluster.Name, vCluster.Namespace, helmOpts)
 	} else {
-		// we have to upgrade / install the chart
-		err = r.HelmClient.Upgrade(vCluster.Name, vCluster.Namespace, helm.UpgradeOptions{
-			Path:   chartPath,
-			Values: values,
-		})
+		// upgrade / install the chart (local)
+		helmOpts.Path = chartPath
+		err = r.HelmClient.Upgrade(vCluster.Name, vCluster.Namespace, helmOpts)
 	}
 	if err != nil {
 		if len(err.Error()) > 512 {
