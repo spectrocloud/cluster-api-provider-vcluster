@@ -1,17 +1,20 @@
 # Build the manager binary
-FROM golang:1.19.8 as builder
+FROM --platform=linux/amd64 golang:1.19.8 as builder
 
 ARG HELM=./bin/helm-linux-amd64
+ARG HELM_CHART=./bin/vcluster-0.13.0.tgz
 ARG TARGETOS
 ARG TARGETARCH
 
 WORKDIR /workspace
 
+# Copy binaries
+COPY ${HELM} helm
+COPY ${HELM_CHART} vcluster-0.13.0.tgz
+
 # Install Delve for debugging
 RUN if [ "${TARGETARCH}" = "amd64" ]; then go install github.com/go-delve/delve/cmd/dlv@latest; fi
 
-# Copy binaries
-COPY ${HELM} helm
 
 # Copy the Go Modules manifests
 COPY go.mod go.mod
@@ -27,14 +30,15 @@ COPY controllers/ controllers/
 COPY pkg/ pkg/
 
 # Build
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -o manager main.go
+RUN CGO_ENABLED=0 go build -a -o manager main.go
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot
+FROM --platform=linux/amd64 gcr.io/distroless/static:nonroot
 WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY --from=builder /workspace/helm .
+COPY --from=builder /workspace/vcluster-0.13.0.tgz .
 USER 65532:65532
 
 ENTRYPOINT ["/manager"]

@@ -368,6 +368,7 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 		})
 	} else {
 		// we have to upgrade / install the chart
+		r.Log.Info("Found chart locally at " + chartPath)
 		err = r.HelmClient.Upgrade(vCluster.Name, vCluster.Namespace, helm.UpgradeOptions{
 			Path:   chartPath,
 			Values: values,

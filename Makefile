@@ -167,7 +167,7 @@ release: manifests kustomize ## Builds the manifests to publish with a release.
 ##@ Binaries
 
 .PHONY: binaries
-binaries: helm
+binaries: helm  download-chart ##Download binaries
 
 .PHONY: helm
 helm: bin-dir
@@ -177,4 +177,15 @@ helm: bin-dir
 		chmod +x $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); \
 		rm -rf ./$(GOOS)-$(GOARCH)/; \
 	fi
+	if ! test -f  $(BIN_DIR)/helm-linux-amd64; then \
+		curl -L https://get.helm.sh/helm-v3.11.3-linux-amd64.tar.gz | tar xz; \
+		mv linux-amd64/helm $(BIN_DIR)/helm-linux-amd64; \
+		chmod +x $(BIN_DIR)/helm-linux-amd64; \
+		rm -rf ./linux-amd64; \
+	fi
 HELM=$(BIN_DIR)/helm-$(GOOS)-$(GOARCH)
+
+.PHONY: download-chart  
+download-chart: helm ##Download vcluster chart
+	$(HELM) repo add loft https://charts.loft.sh
+	$(HELM) pull loft/vcluster --version 0.13.0 -d $(BIN_DIR)
