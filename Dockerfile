@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM --platform=linux/amd64 golang:1.19.8 as builder
+FROM --platform=linux/amd64 golang:1.19.10 as builder
 
 ARG HELM=./bin/helm-linux-amd64
 ARG HELM_CHART=./bin/vcluster-0.13.0.tgz
