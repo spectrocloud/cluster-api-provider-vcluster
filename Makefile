@@ -10,7 +10,8 @@ IMG ?= $(IMG_URL)/$(IMG_NAME):$(IMG_TAG)
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
-HELM_VERSION = 3.12.0
+# HELM_VERSION = 3.12.0
+HELM_VERSION = 3.11.2-20230627
 VCLUSTER_CHART_VERSION = 0.13.0
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -177,13 +178,13 @@ binaries: helm download-chart ## Download binaries
 .PHONY: helm
 helm: bin-dir
 	if ! test -f  $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); then \
-		curl -Ls https://github.com/spectrocloud/helm/releases/download/v3.11.2-20230622/helm_v3.11.2-20230622_$(GOOS)_$(GOARCH).tar.gz | tar -xz; \
+		curl -Ls https://github.com/spectrocloud/helm/releases/download/v$(HELM_VERSION)/helm_v$(HELM_VERSION)_$(GOOS)_$(GOARCH).tar.gz | tar -xz; \
 		mv $(GOOS)-$(GOARCH)/helm $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); \
 		chmod +x $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); \
 		rm -rf ./$(GOOS)-$(GOARCH)/; \
 	fi
 	if ! test -f  $(BIN_DIR)/helm-linux-amd64; then \
-		curl -Ls https://github.com/spectrocloud/helm/releases/download/v3.11.2-20230622/helm_v3.11.2-20230622_linux_amd64.tar.gz | tar -xz; \
+		curl -Ls https://github.com/spectrocloud/helm/releases/download/v$(HELM_VERSION)/helm_v$(HELM_VERSION)_linux_amd64.tar.gz | tar -xz; \
 		mv linux-amd64/helm $(BIN_DIR)/helm-linux-amd64; \
 		chmod +x $(BIN_DIR)/helm-linux-amd64; \
 		rm -rf ./linux-amd64; \
