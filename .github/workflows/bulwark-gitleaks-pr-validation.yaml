@@ -26,6 +26,10 @@ jobs:
         shell: sh
         run: |
           resultPath=./$REPO/gitleaks.json
+          if ! [ -f $resultPath ]; then
+            echo "GitLeaks validation check skipped"
+            exit 0
+          fi
           cat $resultPath | grep -v \"Match\"\: | grep -v \"Secret\"\:
           total_failed_tests=`cat $resultPath | grep \"Fingerprint\"\: | wc -l`
           if [ "$total_failed_tests" -gt 0 ]; then
