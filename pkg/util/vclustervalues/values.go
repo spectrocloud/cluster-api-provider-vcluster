@@ -98,9 +98,9 @@ func mergeMaps(a, b map[string]interface{}) map[string]interface{} {
 }
 
 func getK8sImageVersionFromValues(values string) string {
-	vclusterIdx := strings.Index(values, "vcluster:") // k0s, k3s
+	vclusterIdx := strings.Index(values, "vcluster:\n") // k0s, k3s
 	if vclusterIdx == -1 {
-		vclusterIdx = strings.Index(values, "api:") // k8s, eks
+		vclusterIdx = strings.Index(values, "api:\n") // k8s, eks
 	}
 	imageAnchor := "image:"
 	imageIdx := strings.Index(values[vclusterIdx:], imageAnchor)
