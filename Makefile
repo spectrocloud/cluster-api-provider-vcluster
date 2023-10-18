@@ -3,10 +3,14 @@
 
 .DEFAULT_GOAL:=help
 
+BUILDER_GOLANG_VERSION ?= 1.21
+BUILD_DATE:=$(shell date +%Y%m%d)
 IMG_NAME ?= cluster-api-virtual-controller
-IMG_URL ?= gcr.io/spectro-dev-public/release/cluster-api-virtual
-IMG_TAG ?= v0.1.3-spectro-20221213
+# IMG_URL ?= gcr.io/spectro-images-public/release/cluster-api-virtual/
+IMG_URL ?= gcr.io/spectro-common-dev/${USER}/cluster-api-virtual
+IMG_TAG ?= v0.1.3-spectro-${BUILD_DATE}
 IMG ?= $(IMG_URL)/$(IMG_NAME):$(IMG_TAG)
+BUILD_ARGS = --build-arg CRYPTO_LIB=${FIPS_ENABLE} --build-arg BUILDER_GOLANG_VERSION=${BUILDER_GOLANG_VERSION}
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
@@ -87,7 +91,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: docker-build
 docker-build: binaries ## Build docker image with the manager.
-	docker build -t ${IMG} .
+	docker build ${BUILD_ARGS} -t ${IMG} .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
