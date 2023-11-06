@@ -3,7 +3,7 @@ ARG BUILDER_GOLANG_VERSION
 FROM --platform=linux/amd64 gcr.io/spectro-images-public/golang:${BUILDER_GOLANG_VERSION}-alpine as builder
 
 ARG HELM=./bin/helm-linux-amd64
-ARG HELM_CHART=./bin/vcluster-0.13.0.tgz
+ARG HELM_CHART=./bin/vcluster-0.16.4.tgz
 ARG TARGETOS
 ARG TARGETARCH
 
@@ -11,7 +11,7 @@ WORKDIR /workspace
 
 # Copy binaries
 COPY ${HELM} helm
-COPY ${HELM_CHART} vcluster-0.13.0.tgz
+COPY ${HELM_CHART} vcluster-0.16.4.tgz
 
 # Install Delve for debugging
 RUN if [ "${TARGETARCH}" = "amd64" ]; then go install github.com/go-delve/delve/cmd/dlv@latest; fi
@@ -39,7 +39,7 @@ FROM --platform=linux/amd64 gcr.io/distroless/static:nonroot
 WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY --from=builder /workspace/helm .
-COPY --from=builder /workspace/vcluster-0.13.0.tgz .
+COPY --from=builder /workspace/vcluster-0.16.4.tgz .
 USER 65532:65532
 
 ENTRYPOINT ["/manager"]
