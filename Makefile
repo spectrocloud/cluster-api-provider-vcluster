@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL:=help
 
-BUILDER_GOLANG_VERSION ?= 1.21
+BUILDER_GOLANG_VERSION ?= 1.22
 BUILD_DATE:=$(shell date +%Y%m%d)
 IMG_NAME ?= cluster-api-virtual-controller
 # IMG_URL ?= gcr.io/spectro-images-public/release/cluster-api-virtual/
