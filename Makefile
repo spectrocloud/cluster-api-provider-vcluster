@@ -6,6 +6,7 @@
 VERSION_SUFFIX ?= -dev
 PROD_VERSION ?= 4.4.0${VERSION_SUFFIX}
 BUILDER_GOLANG_VERSION ?= 1.22
+TARGETARCH ?= amd64
 BUILDER_3RDPARTY_VERSION ?= $(shell echo $(PROD_VERSION) | cut -d. -f1,2)
 BUILD_DATE:=$(shell date +%Y%m%d)
 IMG_NAME ?= cluster-api-virtual-controller
@@ -13,7 +14,7 @@ IMG_NAME ?= cluster-api-virtual-controller
 IMG_URL ?= gcr.io/spectro-common-dev/${USER}/cluster-api-virtual
 IMG_TAG ?= v0.1.3-spectro-${BUILD_DATE}
 IMG ?= $(IMG_URL)/$(IMG_NAME):$(IMG_TAG)
-BUILD_ARGS = --build-arg CRYPTO_LIB=${FIPS_ENABLE} --build-arg BUILDER_GOLANG_VERSION=${BUILDER_GOLANG_VERSION} --build-arg BUILDER_3RDPARTY_VERSION=${BUILDER_3RDPARTY_VERSION}
+BUILD_ARGS = --build-arg CRYPTO_LIB=${FIPS_ENABLE} --build-arg BUILDER_GOLANG_VERSION=${BUILDER_GOLANG_VERSION} --build-arg BUILDER_3RDPARTY_VERSION=${BUILDER_3RDPARTY_VERSION} --platform linux/${TARGETARCH}
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
@@ -177,28 +178,11 @@ release: manifests kustomize ## Builds the manifests to publish with a release.
 ##@ Binaries
 
 .PHONY: binaries
-binaries: helm download-chart ## Download binaries
+binaries: download-chart ## Download binaries
 
-# curl -L https://get.helm.sh/helm-v$(HELM_VERSION)-$(GOOS)-$(GOARCH).tar.gz | tar xz; \
-# curl -L https://get.helm.sh/helm-v$(HELM_VERSION)-linux-amd64.tar.gz | tar xz; \
-
-.PHONY: helm
-helm: bin-dir
-	if ! test -f  $(BIN_DIR)/helm-linux-amd64; then \
-		curl -L https://github.com/spectrocloud/helm/releases/download/v3.11.2-20230627/helm_v3.11.2-20230627_linux_amd64.tar.gz | tar xz; \
-		mv linux-amd64/helm $(BIN_DIR)/helm-linux-amd64; \
-		chmod +x $(BIN_DIR)/helm-linux-amd64; \
-		rm -rf ./linux-amd64/; \
-  	fi
-	if ! test -f  $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); then \
-		curl -L https://github.com/spectrocloud/helm/releases/download/v3.11.2-20230627/helm_v3.11.2-20230627_$(GOOS)_$(GOARCH).tar.gz | tar xz; \
-		mv $(GOOS)-$(GOARCH)/helm $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); \
-		chmod +x $(BIN_DIR)/helm-$(GOOS)-$(GOARCH); \
-		rm -rf ./$(GOOS)-$(GOARCH)/; \
-	fi
 HELM=$(BIN_DIR)/helm-$(GOOS)-$(GOARCH)
 
-.PHONY: download-chart  
-download-chart: helm ## Download vcluster chart
+.PHONY: download-chart
+download-chart: ## Download vcluster chart
 	$(HELM) repo add loft https://charts.loft.sh
 	$(HELM) pull loft/vcluster --version $(VCLUSTER_CHART_VERSION) -d $(BIN_DIR)

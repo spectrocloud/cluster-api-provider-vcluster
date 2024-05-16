@@ -7,7 +7,6 @@ FROM --platform=linux/amd64 gcr.io/spectro-images-public/golang:${BUILDER_GOLANG
 ENV BIN_TYPE=${CRYPTO_LIB:+vertex}
 ENV BIN_TYPE=${BIN_TYPE:-palette}
 
-ARG HELM_CHART=./bin/vcluster-0.18.1.tgz
 ARG TARGETOS
 ARG TARGETARCH
 
