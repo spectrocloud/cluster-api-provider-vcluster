@@ -278,9 +278,6 @@ func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alp
 		chartName = constants.DefaultVClusterChartName
 	}
 
-	if vCluster.Spec.HelmRelease == nil || vCluster.Spec.HelmRelease.Chart.Version == "" {
-		return fmt.Errorf("empty value of the .spec.HelmRelease.Version field")
-	}
 	// chart version
 	chartVersion := vCluster.Spec.HelmRelease.Chart.Version
 
