@@ -14,7 +14,7 @@ import (
 )
 
 type Values interface {
-	Merge(release *v1alpha1.VirtualClusterHelmRelease, logger log.Logger) (string, string, error)
+	Merge(release *v1alpha1.VirtualClusterHelmRelease, logger log.BaseLogger) (string, string, error)
 }
 
 func NewValuesMerger(kubernetesVersion *version.Info) Values {
@@ -27,7 +27,7 @@ type values struct {
 	kubernetesVersion *version.Info
 }
 
-func (v *values) Merge(release *v1alpha1.VirtualClusterHelmRelease, logger log.Logger) (string, string, error) {
+func (v *values) Merge(release *v1alpha1.VirtualClusterHelmRelease, logger log.BaseLogger) (string, string, error) {
 	valuesObj := map[string]interface{}{}
 	values := release.Values
 	if values != "" {
@@ -54,7 +54,7 @@ func (v *values) Merge(release *v1alpha1.VirtualClusterHelmRelease, logger log.L
 	return finalK8sVersion, finalValues, nil
 }
 
-func (v *values) getVClusterDefaultValues(release *v1alpha1.VirtualClusterHelmRelease, logger log.Logger) (map[string]interface{}, error) {
+func (v *values) getVClusterDefaultValues(release *v1alpha1.VirtualClusterHelmRelease, logger log.BaseLogger) (map[string]interface{}, error) {
 	logR := logr.New(logger.LogrLogSink())
 	valuesStr, err := vclustervalues.GetDefaultReleaseValues(
 		&vclusterhelm.ChartOptions{

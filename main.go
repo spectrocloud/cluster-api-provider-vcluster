@@ -28,6 +28,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -36,7 +37,7 @@ import (
 	"github.com/loft-sh/cluster-api-provider-vcluster/controllers"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
-	"github.com/loft-sh/log/logr"
+	"github.com/loft-sh/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -116,10 +117,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	log, err := logr.NewLoggerWithOptions(
-		logr.WithOptionsFromEnv(),
-		logr.WithComponentName("vcluster-controller"),
-	)
+	clientSet, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		setupLog.Error(err, "unable to get client set")
+		os.Exit(1)
+	}
 
 	if err != nil {
 		setupLog.Error(err, "unable to setup logger")
@@ -134,13 +136,12 @@ func main() {
 		}
 	} else {
 		if err = (&controllers.VClusterReconciler{
-			Client:             mgr.GetClient(),
-			HelmClient:         helm.NewClient(rawConfig),
-			HelmSecrets:        helm.NewSecrets(mgr.GetClient()),
-			Log:                log,
-			Scheme:             mgr.GetScheme(),
-			ClientConfigGetter: controllers.NewClientConfigGetter(),
-			HTTPClientGetter:   controllers.NewHTTPClientGetter(),
+			Client:      mgr.GetClient(),
+			Clientset:   clientSet,
+			HelmClient:  helm.NewClient(rawConfig),
+			HelmSecrets: helm.NewSecrets(mgr.GetClient()),
+			Log:         log.GetInstance(),
+			Scheme:      mgr.GetScheme(),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "VCluster")
 			os.Exit(1)
