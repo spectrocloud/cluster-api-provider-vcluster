@@ -14,7 +14,7 @@ WORKDIR /workspace
 
 # Copy binaries
 COPY ${HELM} helm
-COPY --from=thirdparty /binaries/helm/latest/$BIN_TYPE/$TARGETARCH/helm /binaries/helm
+COPY --from=thirdparty /binaries/helm/latest/$BIN_TYPE/$TARGETARCH/helm .
 COPY ${HELM_CHART} vcluster-0.18.1.tgz
 
 # Install Delve for debugging
