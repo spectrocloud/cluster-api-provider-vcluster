@@ -183,6 +183,6 @@ binaries: download-chart ## Download binaries
 HELM=$(BIN_DIR)/helm-$(GOOS)-$(GOARCH)
 
 .PHONY: download-chart
-download-chart: ## Download vcluster chart
-	$(HELM) repo add loft https://charts.loft.sh
-	$(HELM) pull loft/vcluster --version $(VCLUSTER_CHART_VERSION) -d $(BIN_DIR)
+download-chart: bin-dir ## Download vcluster chart
+	helm repo add loft https://charts.loft.sh
+	helm pull loft/vcluster --version $(VCLUSTER_CHART_VERSION) -d $(BIN_DIR)

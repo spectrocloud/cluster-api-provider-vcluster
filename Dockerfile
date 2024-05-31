@@ -15,6 +15,7 @@ WORKDIR /workspace
 # Copy binaries
 COPY ${HELM} helm
 COPY --from=thirdparty /binaries/helm/latest/$BIN_TYPE/$TARGETARCH/helm /binaries/helm
+COPY --from=thirdparty /binaries/helm/latest/$BIN_TYPE/$TARGETARCH/helm helm
 COPY ${HELM_CHART} vcluster-0.18.1.tgz
 
 # Install Delve for debugging
@@ -39,7 +40,7 @@ RUN CGO_ENABLED=0 go build -a -o manager main.go
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM --platform=linux/amd64 gcr.io/distroless/static:nonroot
+FROM --platform=linux/amd64 gcr.io/distroless/static:debug
 WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY --from=builder /workspace/helm .
