@@ -20,7 +20,7 @@ BUILD_ARGS = --build-arg CRYPTO_LIB=${FIPS_ENABLE} --build-arg BUILDER_GOLANG_VE
 ENVTEST_K8S_VERSION = 1.23
 # HELM_VERSION = 3.12.0
 HELM_VERSION = 3.11.2-20230627
-VCLUSTER_CHART_VERSION = 0.18.1
+VCLUSTER_CHART_VERSION = 0.16.4
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -183,6 +183,6 @@ binaries: download-chart ## Download binaries
 HELM=$(BIN_DIR)/helm-$(GOOS)-$(GOARCH)
 
 .PHONY: download-chart
-download-chart: ## Download vcluster chart
-	$(HELM) repo add loft https://charts.loft.sh
-	$(HELM) pull loft/vcluster --version $(VCLUSTER_CHART_VERSION) -d $(BIN_DIR)
+download-chart: bin-dir ## Download vcluster chart
+	helm repo add loft https://charts.loft.sh
+	helm pull loft/vcluster --version $(VCLUSTER_CHART_VERSION) -d $(BIN_DIR)
