@@ -124,25 +124,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-// address incompatibility between github.com/kubernetes/cli-runtime v0.26.1 and latest kustomize release
-//replace (
-//	sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.12.1
-//	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.13.9
-//)
-
-// address incompatibility between sigs.k8s.io/cluster-api v1.3.3 and latest k8s release
-//replace (
-//	k8s.io/api => k8s.io/api v0.25.6
-//	k8s.io/apimachinery => k8s.io/apimachinery v0.25.6
-//	k8s.io/apiserver => k8s.io/apiserver v0.25.6
-//	k8s.io/cli-runtime => k8s.io/cli-runtime v0.25.6
-//	k8s.io/client-go => k8s.io/client-go v0.25.6
-//	k8s.io/kubectl => k8s.io/kubectl v0.25.6
-//)
-
-// address incompatibility between k8s.io/cli-runtime v0.25.6 and latest controller-runtime release
-//nreplace sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.13.1
-
 // PRISMA-2022-0227
 replace github.com/emicklei/go-restful/v3 => github.com/emicklei/go-restful/v3 v3.10.0
 

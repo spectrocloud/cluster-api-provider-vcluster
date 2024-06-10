@@ -180,8 +180,6 @@ release: manifests kustomize ## Builds the manifests to publish with a release.
 .PHONY: binaries
 binaries: download-chart ## Download binaries
 
-HELM=$(BIN_DIR)/helm-$(GOOS)-$(GOARCH)
-
 .PHONY: download-chart
 download-chart: bin-dir ## Download vcluster chart
 	helm repo add loft https://charts.loft.sh
