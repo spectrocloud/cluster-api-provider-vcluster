@@ -11,7 +11,7 @@ BUILDER_3RDPARTY_VERSION ?= $(shell echo $(PROD_VERSION) | cut -d. -f1,2)
 BUILD_DATE:=$(shell date +%Y%m%d)
 IMG_NAME ?= cluster-api-virtual-controller
 # IMG_URL ?= gcr.io/spectro-images-public/release/cluster-api-virtual/
-IMG_URL ?= gcr.io/spectro-common-dev/${USER}/cluster-api-virtual
+IMG_URL ?= gcr.io/spectro-dev-public/${USER}/cluster-api-virtual
 IMG_TAG ?= v0.1.3-spectro-${BUILD_DATE}
 IMG ?= $(IMG_URL)/$(IMG_NAME):$(IMG_TAG)
 BUILD_ARGS = --build-arg CRYPTO_LIB=${FIPS_ENABLE} --build-arg BUILDER_GOLANG_VERSION=${BUILDER_GOLANG_VERSION} --build-arg BUILDER_3RDPARTY_VERSION=${BUILDER_3RDPARTY_VERSION}
@@ -20,7 +20,7 @@ BUILD_ARGS = --build-arg CRYPTO_LIB=${FIPS_ENABLE} --build-arg BUILDER_GOLANG_VE
 ENVTEST_K8S_VERSION = 1.23
 # HELM_VERSION = 3.12.0
 HELM_VERSION = 3.11.2-20230627
-VCLUSTER_CHART_VERSION = 0.18.1
+VCLUSTER_CHART_VERSION = 0.16.4
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
