@@ -14,8 +14,10 @@ WORKDIR /workspace
 
 # Copy binaries
 COPY ${HELM} helm
+COPY --from=thirdparty /binaries/helm/latest/$BIN_TYPE/$TARGETARCH/helm /binaries/helm
 COPY --from=thirdparty /binaries/helm/latest/$BIN_TYPE/$TARGETARCH/helm helm
-COPY ${HELM_CHART} vcluster-0.16.4.tgz
+COPY ${HELM_CHART} vcluster-0.18.1.tgz
+
 
 # Install Delve for debugging
 RUN if [ "${TARGETARCH}" = "amd64" ]; then go install github.com/go-delve/delve/cmd/dlv@latest; fi
@@ -43,7 +45,7 @@ FROM --platform=linux/amd64 gcr.io/distroless/static:nonroot
 WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY --from=builder /workspace/helm .
-COPY --from=builder /workspace/vcluster-0.16.4.tgz .
+COPY --from=builder /workspace/vcluster-0.18.1.tgz .
 USER 65532:65532
 
 ENTRYPOINT ["/manager"]

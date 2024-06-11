@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	"fmt"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,25 +34,25 @@ func (r *VCluster) Default() {
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *VCluster) ValidateCreate() error {
+func (r *VCluster) ValidateCreate() (admission.Warnings, error) {
 	vclusterlog.Info("validate create", "name", r.Name)
-	return nil
+	return nil, nil
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *VCluster) ValidateUpdate(old runtime.Object) error {
+func (r *VCluster) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	vclusterlog.Info("validate update", "name", r.Name)
 	oldVcluster := old.(*VCluster)
 
 	if r.Name != oldVcluster.Name {
-		return apierrors.NewBadRequest(fmt.Sprintf("vcluster name change is not allowed, old=%s, new=%s", oldVcluster.Name, r.Name))
+		return nil, apierrors.NewBadRequest(fmt.Sprintf("vcluster name change is not allowed, old=%s, new=%s", oldVcluster.Name, r.Name))
 	}
 
-	return nil
+	return nil, nil
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *VCluster) ValidateDelete() error {
+func (r *VCluster) ValidateDelete() (admission.Warnings, error) {
 	vclusterlog.Info("validate delete", "name", r.Name)
-	return nil
+	return nil, nil
 }

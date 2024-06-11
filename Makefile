@@ -20,7 +20,7 @@ BUILD_ARGS = --build-arg CRYPTO_LIB=${FIPS_ENABLE} --build-arg BUILDER_GOLANG_VE
 ENVTEST_K8S_VERSION = 1.23
 # HELM_VERSION = 3.12.0
 HELM_VERSION = 3.11.2-20230627
-VCLUSTER_CHART_VERSION = 0.16.4
+VCLUSTER_CHART_VERSION = 0.18.1
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -179,8 +179,6 @@ release: manifests kustomize ## Builds the manifests to publish with a release.
 
 .PHONY: binaries
 binaries: download-chart ## Download binaries
-
-HELM=$(BIN_DIR)/helm-$(GOOS)-$(GOARCH)
 
 .PHONY: download-chart
 download-chart: bin-dir ## Download vcluster chart
