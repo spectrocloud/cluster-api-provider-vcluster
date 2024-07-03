@@ -13,7 +13,6 @@ ARG TARGETARCH
 WORKDIR /workspace
 
 # Copy binaries
-COPY ${HELM} helm
 COPY --from=thirdparty /binaries/helm/latest/$BIN_TYPE/$TARGETARCH/helm helm
 COPY ${HELM_CHART} vcluster-0.16.4.tgz
 
