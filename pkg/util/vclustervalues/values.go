@@ -1,19 +1,20 @@
 package vclustervalues
 
 import (
+	"github.com/go-logr/logr"
 	"strings"
 
 	"github.com/ghodss/yaml"
+	"github.com/loft-sh/log"
 	vclusterhelm "github.com/loft-sh/utils/pkg/helm"
 	vclustervalues "github.com/loft-sh/utils/pkg/helm/values"
-	"github.com/loft-sh/utils/pkg/log"
 	"k8s.io/apimachinery/pkg/version"
 
 	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
 )
 
 type Values interface {
-	Merge(release *v1alpha1.VirtualClusterHelmRelease, logger log.Logger) (string, string, error)
+	Merge(release *v1alpha1.VirtualClusterHelmRelease, logger log.BaseLogger) (string, string, error)
 }
 
 func NewValuesMerger(kubernetesVersion *version.Info) Values {
@@ -26,7 +27,7 @@ type values struct {
 	kubernetesVersion *version.Info
 }
 
-func (v *values) Merge(release *v1alpha1.VirtualClusterHelmRelease, logger log.Logger) (string, string, error) {
+func (v *values) Merge(release *v1alpha1.VirtualClusterHelmRelease, logger log.BaseLogger) (string, string, error) {
 	valuesObj := map[string]interface{}{}
 	values := release.Values
 	if values != "" {
@@ -53,7 +54,8 @@ func (v *values) Merge(release *v1alpha1.VirtualClusterHelmRelease, logger log.L
 	return finalK8sVersion, finalValues, nil
 }
 
-func (v *values) getVClusterDefaultValues(release *v1alpha1.VirtualClusterHelmRelease, logger log.Logger) (map[string]interface{}, error) {
+func (v *values) getVClusterDefaultValues(release *v1alpha1.VirtualClusterHelmRelease, logger log.BaseLogger) (map[string]interface{}, error) {
+	logR := logr.New(logger.LogrLogSink())
 	valuesStr, err := vclustervalues.GetDefaultReleaseValues(
 		&vclusterhelm.ChartOptions{
 			ChartName:    release.Chart.Name,
@@ -63,7 +65,7 @@ func (v *values) getVClusterDefaultValues(release *v1alpha1.VirtualClusterHelmRe
 				Major: v.kubernetesVersion.Major,
 				Minor: v.kubernetesVersion.Minor,
 			},
-		}, logger,
+		}, logR,
 	)
 	if err != nil {
 		return nil, err
