@@ -3,10 +3,11 @@ package util
 import (
 	"context"
 	"fmt"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"math"
 	"time"
+
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/loft-sh/vcluster/pkg/util/applier"
 	"github.com/loft-sh/vcluster/pkg/util/loghelper"
@@ -15,7 +16,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func EnsureCRDFromFile(ctx context.Context, config *rest.Config, crdFilePath string, groupVersionKind schema.GroupVersionKind) error {
+func EnsureCRD(ctx context.Context, config *rest.Config, manifest []byte, groupVersionKind schema.GroupVersionKind) error {
 	exists, err := KindExists(config, groupVersionKind)
 	if err != nil {
 		return err
@@ -23,26 +24,26 @@ func EnsureCRDFromFile(ctx context.Context, config *rest.Config, crdFilePath str
 		return nil
 	}
 
-	err = wait.ExponentialBackoffWithContext(ctx, wait.Backoff{Duration: time.Second, Factor: 1.5, Cap: 5 * time.Minute, Steps: math.MaxInt32}, func() (bool, error) {
-		err := applier.ApplyManifestFile(config, crdFilePath)
+	err = wait.ExponentialBackoffWithContext(ctx, wait.Backoff{Duration: time.Second, Factor: 1.5, Cap: 5 * time.Minute, Steps: math.MaxInt32}, func(ctx context.Context) (bool, error) {
+		err := applier.ApplyManifest(ctx, config, manifest)
 		if err != nil {
-			loghelper.Infof("Failed to apply CRD %s from the manifest file %s: %v", groupVersionKind.String(), crdFilePath, err)
+			loghelper.Infof("Failed to apply CRD %s: %v", groupVersionKind.String(), err)
 			return false, nil
 		}
 		return true, nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed to apply CRD %s: %v", groupVersionKind.String(), err)
+		return fmt.Errorf("failed to apply CRD %s: %w", groupVersionKind.String(), err)
 	}
 
 	var lastErr error
-	err = wait.ExponentialBackoffWithContext(ctx, wait.Backoff{Duration: time.Second, Factor: 1.5, Cap: time.Minute, Steps: math.MaxInt32}, func() (bool, error) {
+	err = wait.ExponentialBackoffWithContext(ctx, wait.Backoff{Duration: time.Second, Factor: 1.5, Cap: time.Minute, Steps: math.MaxInt32}, func(_ context.Context) (bool, error) {
 		var found bool
 		found, lastErr = KindExists(config, groupVersionKind)
 		return found, nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed to find CRD %s: %v: %v", groupVersionKind.String(), err, lastErr)
+		return fmt.Errorf("failed to find CRD %s: %w: %w", groupVersionKind.String(), err, lastErr)
 	}
 
 	return nil
