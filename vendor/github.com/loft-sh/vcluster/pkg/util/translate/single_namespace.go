@@ -3,6 +3,8 @@ package translate
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"regexp"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -29,10 +31,14 @@ func (s *singleNamespace) SingleNamespaceTarget() bool {
 
 // PhysicalName returns the physical name of the name / namespace resource
 func (s *singleNamespace) PhysicalName(name, namespace string) string {
+	return SingleNamespacePhysicalName(name, namespace, VClusterName)
+}
+
+func SingleNamespacePhysicalName(name, namespace, suffix string) string {
 	if name == "" {
 		return ""
 	}
-	return SafeConcatName(name, "x", namespace, "x", Suffix)
+	return SafeConcatName(name, "x", namespace, "x", suffix)
 }
 
 func (s *singleNamespace) objectPhysicalName(obj runtime.Object) string {
@@ -52,7 +58,7 @@ func (s *singleNamespace) PhysicalNameClusterScoped(name string) string {
 	if name == "" {
 		return ""
 	}
-	return SafeConcatName("vcluster", name, "x", s.targetNamespace, "x", Suffix)
+	return SafeConcatName("vcluster", name, "x", s.targetNamespace, "x", VClusterName)
 }
 
 func (s *singleNamespace) IsManaged(obj runtime.Object) bool {
@@ -61,11 +67,18 @@ func (s *singleNamespace) IsManaged(obj runtime.Object) bool {
 		return false
 	} else if metaAccessor.GetLabels() == nil {
 		return false
-	} else if metaAccessor.GetNamespace() != "" && metaAccessor.GetNamespace() != s.targetNamespace {
+	} else if metaAccessor.GetNamespace() != "" && !s.IsTargetedNamespace(metaAccessor.GetNamespace()) {
 		return false
 	}
 
-	return metaAccessor.GetLabels()[MarkerLabel] == Suffix
+	// vcluster has not synced the object IF:
+	// If object-name annotation is not set OR
+	// If object-name annotation is different from actual name
+	if metaAccessor.GetAnnotations() == nil || metaAccessor.GetAnnotations()[NameAnnotation] == "" || metaAccessor.GetName() != s.PhysicalName(metaAccessor.GetAnnotations()[NameAnnotation], metaAccessor.GetAnnotations()[NamespaceAnnotation]) {
+		return false
+	}
+
+	return metaAccessor.GetLabels()[MarkerLabel] == VClusterName
 }
 
 func (s *singleNamespace) IsManagedCluster(obj runtime.Object) bool {
@@ -76,15 +89,19 @@ func (s *singleNamespace) IsManagedCluster(obj runtime.Object) bool {
 		return false
 	}
 
-	return metaAccessor.GetLabels()[MarkerLabel] == SafeConcatName(s.targetNamespace, "x", Suffix)
+	return metaAccessor.GetLabels()[MarkerLabel] == SafeConcatName(s.targetNamespace, "x", VClusterName)
+}
+
+func (s *singleNamespace) IsTargetedNamespace(ns string) bool {
+	return ns == s.targetNamespace
 }
 
 func (s *singleNamespace) convertNamespacedLabelKey(key string) string {
 	digest := sha256.Sum256([]byte(key))
-	return SafeConcatName(LabelPrefix, s.targetNamespace, "x", Suffix, "x", hex.EncodeToString(digest[0:])[0:10])
+	return SafeConcatName(LabelPrefix, s.targetNamespace, "x", VClusterName, "x", hex.EncodeToString(digest[0:])[0:10])
 }
 
-func (s *singleNamespace) PhysicalNamespace(vNamespace string) string {
+func (s *singleNamespace) PhysicalNamespace(_ string) string {
 	return s.targetNamespace
 }
 
@@ -97,8 +114,18 @@ func (s *singleNamespace) TranslateLabelsCluster(vObj client.Object, pObj client
 		}
 		if vObjLabels != nil {
 			for _, k := range syncedLabels {
-				if value, ok := vObjLabels[k]; ok {
-					newLabels[k] = value
+				if strings.HasSuffix(k, "/*") {
+					r, _ := regexp.Compile(strings.ReplaceAll(k, "/*", "/.*"))
+
+					for key, val := range vObjLabels {
+						if r.MatchString(key) {
+							newLabels[key] = val
+						}
+					}
+				} else {
+					if value, ok := vObjLabels[k]; ok {
+						newLabels[k] = value
+					}
 				}
 			}
 		}
@@ -109,7 +136,7 @@ func (s *singleNamespace) TranslateLabelsCluster(vObj client.Object, pObj client
 			newLabels[ControllerLabel] = pObjLabels[ControllerLabel]
 		}
 	}
-	newLabels[MarkerLabel] = SafeConcatName(s.targetNamespace, "x", Suffix)
+	newLabels[MarkerLabel] = SafeConcatName(s.targetNamespace, "x", VClusterName)
 	return newLabels
 }
 
@@ -144,7 +171,7 @@ func (s *singleNamespace) LegacyGetTargetNamespace() (string, error) {
 }
 
 func (s *singleNamespace) ApplyMetadata(vObj client.Object, syncedLabels []string, excludedAnnotations ...string) client.Object {
-	pObj, err := s.SetupMetadataWithName(vObj, func(vName string, vObj client.Object) string {
+	pObj, err := s.SetupMetadataWithName(vObj, func(_ string, vObj client.Object) string {
 		return s.objectPhysicalName(vObj)
 	})
 	if err != nil {
@@ -162,7 +189,7 @@ func (s *singleNamespace) ApplyMetadataUpdate(vObj client.Object, pObj client.Ob
 }
 
 func (s *singleNamespace) ApplyAnnotations(src client.Object, to client.Object, excluded []string) map[string]string {
-	excluded = append(excluded, NameAnnotation, NamespaceAnnotation)
+	excluded = append(excluded, NameAnnotation, UIDAnnotation, NamespaceAnnotation)
 	toAnnotations := map[string]string{}
 	if to != nil {
 		toAnnotations = to.GetAnnotations()
@@ -170,6 +197,7 @@ func (s *singleNamespace) ApplyAnnotations(src client.Object, to client.Object, 
 
 	retMap := applyAnnotations(src.GetAnnotations(), toAnnotations, excluded...)
 	retMap[NameAnnotation] = src.GetName()
+	retMap[UIDAnnotation] = string(src.GetUID())
 	if src.GetNamespace() == "" {
 		delete(retMap, NamespaceAnnotation)
 	} else {
@@ -203,15 +231,25 @@ func (s *singleNamespace) TranslateLabels(fromLabels map[string]string, vNamespa
 
 	newLabels := map[string]string{}
 	for k, v := range fromLabels {
-		newLabels[ConvertLabelKey(k)] = v
+		newLabels[s.ConvertLabelKey(k)] = v
 	}
 	for _, k := range syncedLabels {
-		if value, ok := fromLabels[k]; ok {
-			newLabels[k] = value
+		if strings.HasSuffix(k, "/*") {
+			r, _ := regexp.Compile(strings.ReplaceAll(k, "/*", "/.*"))
+
+			for key, val := range fromLabels {
+				if r.MatchString(key) {
+					newLabels[key] = val
+				}
+			}
+		} else {
+			if value, ok := fromLabels[k]; ok {
+				newLabels[k] = value
+			}
 		}
 	}
 
-	newLabels[MarkerLabel] = Suffix
+	newLabels[MarkerLabel] = VClusterName
 	if vNamespace != "" {
 		newLabels[NamespaceLabel] = vNamespace
 	} else {
@@ -244,10 +282,10 @@ func (s *singleNamespace) SetupMetadataWithName(vObj client.Object, translator P
 }
 
 func (s *singleNamespace) TranslateLabelSelector(labelSelector *metav1.LabelSelector) *metav1.LabelSelector {
-	return TranslateLabelSelectorWithPrefix(LabelPrefix, labelSelector)
+	return LabelSelectorWithPrefix(LabelPrefix, labelSelector)
 }
 
-func TranslateLabelSelectorWithPrefix(labelPrefix string, labelSelector *metav1.LabelSelector) *metav1.LabelSelector {
+func LabelSelectorWithPrefix(labelPrefix string, labelSelector *metav1.LabelSelector) *metav1.LabelSelector {
 	if labelSelector == nil {
 		return nil
 	}
@@ -273,13 +311,13 @@ func TranslateLabelSelectorWithPrefix(labelPrefix string, labelSelector *metav1.
 	return newLabelSelector
 }
 
-func ConvertLabelKey(key string) string {
+func (s *singleNamespace) ConvertLabelKey(key string) string {
 	return ConvertLabelKeyWithPrefix(LabelPrefix, key)
 }
 
 func ConvertLabelKeyWithPrefix(prefix, key string) string {
 	digest := sha256.Sum256([]byte(key))
-	return SafeConcatName(prefix, Suffix, "x", hex.EncodeToString(digest[0:])[0:10])
+	return SafeConcatName(prefix, VClusterName, "x", hex.EncodeToString(digest[0:])[0:10])
 }
 
 func MergeLabelSelectors(elems ...*metav1.LabelSelector) *metav1.LabelSelector {
