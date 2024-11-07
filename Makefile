@@ -41,8 +41,10 @@ SHELL = /usr/bin/env bash -o pipefail
 all: build
 
 BIN_DIR ?= ./bin
+CHARTS_DIR ?= ./charts
 bin-dir:
 	test -d $(BIN_DIR) || mkdir $(BIN_DIR)
+	test -d $(CHARTS_DIR) || mkdir $(CHARTS_DIR)
 
 ##@ General
 
@@ -185,4 +187,4 @@ HELM=$(BIN_DIR)/helm-$(GOOS)-$(GOARCH)
 .PHONY: download-chart
 download-chart: bin-dir ## Download vcluster chart
 	helm repo add loft https://charts.loft.sh
-	helm pull loft/vcluster --version $(VCLUSTER_CHART_VERSION) -d $(BIN_DIR)
+	helm pull loft/vcluster --version $(VCLUSTER_CHART_VERSION) -d $(CHARTS_DIR)
