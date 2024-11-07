@@ -33,7 +33,7 @@ COPY controllers/ controllers/
 COPY pkg/ pkg/
 
 # Copy vCluster charts
-COPY /charts/ /charts/
+COPY charts/ /charts/
 
 # Build
 RUN CGO_ENABLED=0 go build -a -o manager main.go
