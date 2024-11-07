@@ -356,7 +356,7 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 
 	r.Log.Infof("Deploy virtual cluster %s/%s with values: %s", vCluster.Namespace, vCluster.Name, values)
 
-	chartPath := "./" + chartName + "-" + chartVersion + ".tgz"
+	chartPath := "/charts/" + chartName + "-" + chartVersion + ".tgz"
 	_, err = os.Stat(chartPath)
 	if err != nil {
 		// we have to upgrade / install the chart
