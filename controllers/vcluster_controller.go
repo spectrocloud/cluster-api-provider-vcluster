@@ -250,7 +250,7 @@ func (r *VClusterReconciler) pauseIfNeeded(ctx context.Context, vCluster *v1alph
 	if err := lifecycle.PauseVCluster(ctx, r.Clientset, vCluster.Name, vCluster.Namespace, r.Log); err != nil {
 		return err
 	}
-	if err := lifecycle.DeleteVClusterWorkloads(ctx, r.Clientset, "vcluster.loft.sh/managed-by="+vCluster.Name, vCluster.Namespace, r.Log); err != nil {
+	if err := lifecycle.DeleteMultiNamespaceVClusterWorkloads(ctx, r.Clientset, "vcluster.loft.sh/managed-by="+vCluster.Name, vCluster.Namespace, r.Log); err != nil {
 		return err
 	}
 
