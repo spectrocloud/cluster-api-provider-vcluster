@@ -1,21 +1,23 @@
+ARG BUILDER_GOLANG_VERSION
+ARG BUILDER_3RDPARTY_VERSION
 # Build the manager binary
-FROM golang:1.23 as builder
+FROM --platform=$TARGETPLATFORM gcr.io/spectro-images-public/builders/spectro-third-party:${BUILDER_3RDPARTY_VERSION} as thirdparty
+FROM --platform=linux/amd64 gcr.io/spectro-images-public/golang:${BUILDER_GOLANG_VERSION}-alpine as builder
+
+ENV BIN_TYPE=${CRYPTO_LIB:+vertex}
+ENV BIN_TYPE=${BIN_TYPE:-palette}
 
 ARG TARGETOS
 ARG TARGETARCH
 
 WORKDIR /workspace
 
+# Copy binaries
+COPY --from=thirdparty /binaries/helm/latest/$BIN_TYPE/$TARGETARCH/helm helm
+
 # Install Delve for debugging
 RUN if [ "${TARGETARCH}" = "amd64" ]; then go install github.com/go-delve/delve/cmd/dlv@latest; fi
 
-# Install Helm 3
-RUN curl -s https://get.helm.sh/helm-v3.11.1-linux-amd64.tar.gz > helm3.tar.gz \
- && tar -zxvf helm3.tar.gz linux-amd64/helm \
- && chmod +x linux-amd64/helm \
- && mv linux-amd64/helm $PWD/helm \
- && rm helm3.tar.gz \
- && rm -R linux-amd64
 
 # Copy the Go Modules manifests
 COPY go.mod go.mod
@@ -30,15 +32,19 @@ COPY api/ api/
 COPY controllers/ controllers/
 COPY pkg/ pkg/
 
+# Copy vCluster charts
+COPY charts/ /charts/
+
 # Build
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -o manager main.go
+RUN CGO_ENABLED=0 go build -a -o manager main.go
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot
+FROM --platform=linux/amd64 gcr.io/distroless/static:nonroot
 WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY --from=builder /workspace/helm .
+COPY --from=builder /charts/ /charts/
 USER 65532:65532
 
 ENTRYPOINT ["/manager"]

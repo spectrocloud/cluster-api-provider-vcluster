@@ -1,9 +1,26 @@
+# If you update this file, please follow:
+# https://suva.sh/posts/well-documented-makefiles/
 
-TAG ?= main
-# Image URL to use all building/pushing image targets
-IMG ?= docker.io/loftsh/cluster-api-provider-vcluster:$(TAG)
+.DEFAULT_GOAL:=help
+
+VERSION_SUFFIX ?= -dev
+PROD_VERSION ?= 4.4.0${VERSION_SUFFIX}
+BUILDER_GOLANG_VERSION ?= 1.22
+TARGETARCH ?= amd64
+BUILDER_3RDPARTY_VERSION ?= $(shell echo $(PROD_VERSION) | cut -d. -f1,2)
+BUILD_DATE:=$(shell date +%Y%m%d)
+IMG_NAME ?= cluster-api-virtual-controller
+# IMG_URL ?= gcr.io/spectro-images-public/release/cluster-api-virtual/
+IMG_URL ?= gcr.io/spectro-dev-public/${USER}/cluster-api-virtual
+IMG_TAG ?= v0.1.3-spectro-${BUILD_DATE}
+IMG ?= $(IMG_URL)/$(IMG_NAME):$(IMG_TAG)
+BUILD_ARGS = --build-arg CRYPTO_LIB=${FIPS_ENABLE} --build-arg BUILDER_GOLANG_VERSION=${BUILDER_GOLANG_VERSION} --build-arg BUILDER_3RDPARTY_VERSION=${BUILDER_3RDPARTY_VERSION}
+
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
+# HELM_VERSION = 3.12.0
+HELM_VERSION = 3.11.2-20230627
+VCLUSTER_CHART_VERSION = 0.18.1
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -11,6 +28,8 @@ GOBIN=$(shell go env GOPATH)/bin
 else
 GOBIN=$(shell go env GOBIN)
 endif
+GOARCH ?= $(shell go env GOARCH)
+GOOS ?= $(shell go env GOOS)
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
@@ -20,6 +39,12 @@ SHELL = /usr/bin/env bash -o pipefail
 
 .PHONY: all
 all: build
+
+BIN_DIR ?= ./bin
+CHARTS_DIR ?= ./charts
+bin-dir:
+	test -d $(BIN_DIR) || mkdir $(BIN_DIR)
+	test -d $(CHARTS_DIR) || mkdir $(CHARTS_DIR)
 
 ##@ General
 
@@ -71,11 +96,19 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: docker-build
-docker-build: test ## Build docker image with the manager.
-	docker build -t ${IMG} .
+docker-build: binaries ## Build docker image with the manager.
+	docker build --platform linux/${TARGETARCH} ${BUILD_ARGS} -t ${IMG} .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
+	docker push ${IMG}
+
+.PHONY: docker
+docker: binaries docker-build docker-push ## Build & push docker image with the manager.
+
+.PHONY: docker-build-dev
+docker-build-dev: binaries ## Build & push docker dev image with the manager.
+	docker build -f ./Dockerfile.dev -t ${IMG} .
 	docker push ${IMG}
 
 ##@ Deployment
@@ -104,12 +137,12 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 .PHONY: controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.16.0)
+	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.8.0)
 
 KUSTOMIZE = $(shell pwd)/bin/kustomize
 .PHONY: kustomize
 kustomize: ## Download kustomize locally if necessary.
-	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v5@v5.3.0)
+	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v4@v4.5.4)
 
 ENVTEST = $(shell pwd)/bin/setup-envtest
 .PHONY: envtest
@@ -143,3 +176,16 @@ release: manifests kustomize ## Builds the manifests to publish with a release.
 	sed -i'' -e 's@image: .*@image: docker.io/loftsh/cluster-api-provider-vcluster:main@' ./config/default/manager_image_patch.yaml
 	sed -i'' -e 's@imagePullPolicy: '"$(PULL_POLICY)"'@imagePullPolicy: IfNotPresent@' ./config/default/manager_pull_policy_patch.yaml
 	sed -i'' -e 's@name: $${CLUSTER_ROLE:=cluster-admin}@name: cluster-admin@' ./config/rbac/provider_role_binding.yaml
+
+##@ Binaries
+
+.PHONY: binaries
+binaries: download-chart ## Download binaries
+
+HELM=$(BIN_DIR)/helm-$(GOOS)-$(GOARCH)
+
+.PHONY: download-chart
+download-chart: bin-dir ## Download vcluster chart
+	helm repo add loft https://charts.loft.sh
+	helm pull loft/vcluster --version $(VCLUSTER_CHART_VERSION) -d $(CHARTS_DIR)
+	helm pull loft/vcluster-k8s --version $(VCLUSTER_CHART_VERSION) -d $(CHARTS_DIR)

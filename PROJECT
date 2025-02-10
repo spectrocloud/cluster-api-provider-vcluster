@@ -13,4 +13,8 @@ resources:
   kind: VCluster
   path: github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1
   version: v1alpha1
+  webhooks:
+    defaulting: true
+    validation: true
+    webhookVersion: v1
 version: "3"

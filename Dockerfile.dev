@@ -1,0 +1,21 @@
+# Build the manager binary
+FROM golang:alpine3.16 as builder
+
+RUN apk add --no-cache gcc g++ bash curl tar
+
+# Install Delve for debugging
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
+ARG HELM=./bin/helm-linux-amd64
+
+WORKDIR /
+
+# Copy binaries
+COPY ${HELM} helm
+
+# Copy the Go Modules manifests
+COPY go.mod go.mod
+COPY go.sum go.sum
+# cache deps before building and copying source so that we don't need to re-download as much
+# and so that source changes don't invalidate our downloaded layer
+RUN go mod download

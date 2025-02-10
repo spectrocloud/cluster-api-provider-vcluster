@@ -20,19 +20,17 @@ testbin/*
 
 # editor and IDE paraphernalia
 .idea
+.vscode
 *.swp
 *.swo
 *~
-.DS_Store
-.envrc
 
 # release dir where infrastructure-components.yaml and other release artifacts will be created
 /release/
 
-# devlopment tmp files
+# development tmp files
 /.devspace/
 devvalues.yaml
 kubeconfig.yaml
 
-/tools
-custom-gcl
+config/manager/secret.yaml
