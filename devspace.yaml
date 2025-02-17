@@ -1,60 +1,49 @@
+name: capvc-controller
 version: v2beta1
-name: cluster-api-provider-vcluster
 
 vars:
-  IMAGE: loftsh/cluster-api-provider-vcluster
+  IMAGE: gcr.io/spectro-common-dev/tylergillson/cluster-api-provider-virtual/virtual-controller
 
 images:
-  provider:
+  capvc-controller:
+    createPullSecret: false
+    dockerfile: ./Dockerfile.dev
     image: ${IMAGE}
+    tags:
+    - dev
     rebuildStrategy: ignoreContextChanges
     docker: {}
-    target: builder
 
 deployments:
-  provider:
-    namespace: cluster-api-provider-vcluster-system
-    updateImageTags: true
+  capvc-controller:
+    namespace: cluster-63a24c1c0066396beecb9eca
     kubectl:
       kustomize: true
       manifests:
-      - config/default/
-      - config/crd/
+      - config/devspace
+
 dev:
-  provider:
-    namespace: cluster-api-provider-vcluster-system
+  capvc-controller:
     imageSelector: ${IMAGE}
-    workingDir: /workspace
     terminal:
-      command: "./devspace_start.sh"
+      enabled: true
+      disableReplace: true
+      workDir: /
+      command: ./devspace_start.sh
     ports:
-    - port: 2348:2345
+    - port: "2345"
     sync:
-    - path: ./
+    - path: .:/
       excludePaths:
         - '**'
-        - '!/pkg'
         - '!/api'
-        - '!/controllers'
-        - '!/vendor'
-        - '!/hack'
         - '!/config'
+        - '!/controllers'
+        - '!/devspace_start.sh'
         - '!/go.mod'
         - '!/go.sum'
-        - '!/devspace_start.sh'
-        - '!/Makefile'
-        - '!/Dockerfile'
-
-commands:
-  dev: |-
-    devspace run-pipeline dev -n cluster-api-provider-vcluster-system $@
-  deploy: |-
-    devspace run-pipeline --profile deploy -n cluster-api-provider-vcluster-system -d $@
-
-profiles:
-  - name: deploy
-    patches:
-      - op: remove
-        path: images.provider.rebuildStrategy
-      - op: remove
-        path: images.provider.target
+        - '!/hack'
+        - '!/main.go'
+        - '!/pkg'
+        - '!/vendor'
+        - 'Makefile'

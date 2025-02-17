@@ -2,11 +2,13 @@ package lifecycle
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/loft-sh/log"
 	"github.com/loft-sh/vcluster/pkg/constants"
+	"github.com/loft-sh/vcluster/pkg/kube"
 	"github.com/loft-sh/vcluster/pkg/util/translate"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -54,18 +56,17 @@ func PauseVCluster(ctx context.Context, kubeClient *kubernetes.Clientset, name, 
 	return nil
 }
 
-// DeleteVClusterWorkloads deletes all pods associated with a running vcluster
-func DeleteVClusterWorkloads(ctx context.Context, kubeClient *kubernetes.Clientset, labelSelector, namespace string, log log.BaseLogger) error {
+// DeletePods deletes all pods associated with a running vcluster
+func DeletePods(ctx context.Context, kubeClient *kubernetes.Clientset, labelSelector, namespace string, log log.BaseLogger) error {
 	list, err := kubeClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
 	if err != nil {
 		return err
 	}
 
 	if len(list.Items) > 0 {
-		log.Infof("Delete %d vcluster workloads", len(list.Items))
+		log.Infof("Relaunching %d vcluster pods", len(list.Items))
 		for _, item := range list.Items {
 			err = kubeClient.CoreV1().Pods(namespace).Delete(ctx, item.Name, metav1.DeleteOptions{})
-
 			if err != nil {
 				if kerrors.IsNotFound(err) {
 					continue
@@ -78,7 +79,7 @@ func DeleteVClusterWorkloads(ctx context.Context, kubeClient *kubernetes.Clients
 	return nil
 }
 
-func DeleteMultiNamespaceVclusterWorkloads(ctx context.Context, client *kubernetes.Clientset, vclusterName, vclusterNamespace string, _ log.BaseLogger) error {
+func DeleteMultiNamespaceVClusterWorkloads(ctx context.Context, client *kubernetes.Clientset, vclusterName, vclusterNamespace string, _ log.BaseLogger) error {
 	// get all host namespaces managed by this multinamespace mode enabled vcluster
 	namespaces, err := client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{
 		LabelSelector: labels.FormatLabels(map[string]string{
@@ -86,7 +87,10 @@ func DeleteMultiNamespaceVclusterWorkloads(ctx context.Context, client *kubernet
 		}),
 	})
 	if err != nil && !kerrors.IsForbidden(err) {
-		return errors.Wrap(err, "list namespaces")
+		return fmt.Errorf("list namespaces: %w", err)
+	}
+	if namespaces == nil {
+		return errors.New("list namespaces: nil result")
 	}
 
 	// delete all pods inside the above returned namespaces
@@ -117,7 +121,7 @@ func scaleDownDeployment(ctx context.Context, kubeClient kubernetes.Interface, l
 
 	zero := int32(0)
 	for _, item := range list.Items {
-		if item.Annotations != nil && item.Annotations[constants.PausedAnnotation] == "true" {
+		if IsPaused(&item) {
 			log.Infof("vcluster %s/%s is already paused", namespace, item.Name)
 			return true, nil
 		} else if item.Spec.Replicas != nil && *item.Spec.Replicas == 0 {
@@ -179,7 +183,7 @@ func scaleDownStatefulSet(ctx context.Context, kubeClient kubernetes.Interface, 
 
 	zero := int32(0)
 	for _, item := range list.Items {
-		if item.Annotations != nil && item.Annotations[constants.PausedAnnotation] == "true" {
+		if IsPaused(&item) {
 			log.Infof("vcluster %s/%s is already paused", namespace, item.Name)
 			return true, nil
 		} else if item.Spec.Replicas != nil && *item.Spec.Replicas == 0 {
@@ -277,7 +281,7 @@ func scaleUpDeployment(ctx context.Context, kubeClient kubernetes.Interface, lab
 	}
 
 	for _, item := range list.Items {
-		if item.Annotations == nil || item.Annotations[constants.PausedAnnotation] != "true" {
+		if !IsPaused(&item) {
 			return false, nil
 		}
 
@@ -323,7 +327,7 @@ func scaleUpStatefulSet(ctx context.Context, kubeClient kubernetes.Interface, la
 	}
 
 	for _, item := range list.Items {
-		if item.Annotations == nil || item.Annotations[constants.PausedAnnotation] != "true" {
+		if !IsPaused(&item) {
 			return false, nil
 		}
 
@@ -358,4 +362,8 @@ func scaleUpStatefulSet(ctx context.Context, kubeClient kubernetes.Interface, la
 	}
 
 	return true, nil
+}
+
+func IsPaused(annotated kube.Annotated) bool {
+	return annotated != nil && annotated.GetAnnotations()[constants.PausedAnnotation] == "true"
 }

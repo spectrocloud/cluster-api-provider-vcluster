@@ -67,7 +67,7 @@ func NewVClusterClientConfig(name, namespace string, token string, clientCert, c
 	config := clientcmdapi.NewConfig()
 	contextName := "default"
 	clusterConfig := clientcmdapi.NewCluster()
-	clusterConfig.Server = fmt.Sprintf("https://%s.%s:443", name, namespace)
+	clusterConfig.Server = fmt.Sprintf("https://%s.%s.svc.cluster.local:443", name, namespace)
 	clusterConfig.InsecureSkipTLSVerify = true
 
 	authInfo := clientcmdapi.NewAuthInfo()

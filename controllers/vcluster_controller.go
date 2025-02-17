@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	vconstants "github.com/loft-sh/vcluster/pkg/constants"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,7 +53,6 @@ import (
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/patch"
 	log "github.com/loft-sh/log"
-	vconstants "github.com/loft-sh/vcluster/pkg/constants"
 )
 
 type ClientConfigGetter interface {
@@ -167,6 +167,7 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 			// as per CAPI docs:
 			// The cluster controller will set an OwnerReference on the infrastructureCluster.
 			// This controller should normally take no action during reconciliation until it sees the OwnerReference.
+			r.Log.Info("Aborting VCluster reconcile. No cluster Owner found.")
 			return ctrl.Result{}, nil
 		}
 	}
@@ -196,12 +197,14 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 	// ensure finalizer
 	err = EnsureFinalizer(ctx, r.Client, vCluster, CleanupFinalizer)
 	if err != nil {
+		r.Log.Error(err, "Error ensuring finalizer")
 		return ctrl.Result{}, err
 	}
 
 	// Initialize the patch helper.
 	patchHelper, err := patch.NewHelper(vCluster, r.Client)
 	if err != nil {
+		r.Log.Error(err, "Error initializing patch helper")
 		return ctrl.Result{}, err
 	}
 
@@ -219,6 +222,28 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 			reterr = utilerrors.NewAggregate([]error{reterr, err})
 		}
 	}()
+
+	// check if we have to pause
+	err = r.pauseIfNeeded(ctx, vCluster)
+	if err != nil {
+		r.Log.Error(err, "error during virtual cluster pause", "namespace", vCluster.Namespace, "name", vCluster.Name)
+		conditions.MarkFalse(vCluster, v1alpha1.PausedCondition, "Paused", v1alpha1.ConditionSeverityError, "%v", err)
+		return ctrl.Result{RequeueAfter: time.Second * 5}, err
+	}
+
+	// check if we have to resume
+	err = r.resumeIfNeeded(ctx, vCluster)
+	if err != nil {
+		r.Log.Error(err, "error during virtual cluster resume %s/%s: %v", "namespace", vCluster.Namespace, "name", vCluster.Name)
+		return ctrl.Result{RequeueAfter: time.Second * 5}, err
+	}
+
+	// if vCluster is paused, skip remaining reconciliation
+	if conditions.IsTrue(vCluster, v1alpha1.PausedCondition) {
+		r.Log.Info("skipping remaining reconciliation for paused virtual cluster", "namespace", vCluster.Namespace, "name", vCluster.Name)
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+	}
+	r.Log.Info("reconciling deployment, kubeconfig & health for active virtual cluster", "namespace", vCluster.Namespace, "name", vCluster.Name)
 
 	// check if we have to redeploy
 	err = r.redeployIfNeeded(ctx, vCluster)
@@ -374,13 +399,7 @@ func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alp
 		)
 	}
 
-	var chartPath string
-	if chartVersion != "" {
-		chartPath = fmt.Sprintf("./%s-%s.tgz", chartName, chartVersion)
-	} else {
-		chartPath = fmt.Sprintf("./%s-latest.tgz", chartName)
-	}
-
+	chartPath := "/charts/" + chartName + "-" + chartVersion + ".tgz"
 	_, err := os.Stat(chartPath)
 	if err != nil {
 		// we have to upgrade / install the chart
@@ -392,6 +411,7 @@ func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alp
 		})
 	} else {
 		// we have to upgrade / install the chart
+		r.Log.Info("Found chart locally at " + chartPath)
 		err = r.HelmClient.Upgrade(vCluster.Name, vCluster.Namespace, helm.UpgradeOptions{
 			Path:   chartPath,
 			Values: values,
@@ -402,7 +422,14 @@ func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alp
 			err = fmt.Errorf("%v ... ", err.Error()[:512])
 		}
 
-		return fmt.Errorf("error installing / upgrading vcluster: %w", err)
+		// delete failed releases so that installation is attempted each iteration
+		if strings.Contains(err.Error(), "has no deployed releases") {
+			if delErr := r.HelmClient.Delete(vCluster.Name, vCluster.Namespace); delErr != nil {
+				r.Log.Error(err, "error deleting helm release: %v")
+			}
+		}
+
+		return fmt.Errorf("error installing / upgrading vcluster: %v", err)
 	}
 
 	conditions.MarkTrue(vCluster, v1alpha1.HelmChartDeployedCondition)
