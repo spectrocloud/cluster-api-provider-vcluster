@@ -60,6 +60,8 @@ func main() {
 	var enableLeaderElection bool
 	var probeAddr string
 	var namespace string
+	var webhookPort int
+	var webhookCertDir string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 
@@ -67,6 +69,11 @@ func main() {
 
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+
+	flag.IntVar(&webhookPort, "webhook-port", 0, "Webhook Server port")
+
+	flag.StringVar(&webhookCertDir, "webhook-cert-dir", "/tmp/k8s-webhook-server/serving-certs/",
+		"Webhook cert dir, only used when webhook-port is specified.")
 
 	flag.StringVar(&namespace, "namespace", "", "The namespace watched by the controller manager.")
 
@@ -91,7 +98,7 @@ func main() {
 			BindAddress: metricsAddr,
 		},
 		WebhookServer: webhook.NewServer(webhook.Options{
-			Port: 9443,
+			Port: webhookPort,
 		}),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
@@ -120,18 +127,27 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.VClusterReconciler{
-		Client:             mgr.GetClient(),
-		HelmClient:         helm.NewClient(rawConfig),
-		HelmSecrets:        helm.NewSecrets(mgr.GetClient()),
-		Log:                log,
-		Scheme:             mgr.GetScheme(),
-		ClientConfigGetter: controllers.NewClientConfigGetter(),
-		HTTPClientGetter:   controllers.NewHTTPClientGetter(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "VCluster")
-		os.Exit(1)
+	// activate either webhook or controller - not both
+	if webhookPort != 0 {
+		if err = (&infrastructurev1alpha1.VCluster{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "VCluster")
+			os.Exit(1)
+		}
+	} else {
+		if err = (&controllers.VClusterReconciler{
+			Client:             mgr.GetClient(),
+			HelmClient:         helm.NewClient(rawConfig),
+			HelmSecrets:        helm.NewSecrets(mgr.GetClient()),
+			Log:                log,
+			Scheme:             mgr.GetScheme(),
+			ClientConfigGetter: controllers.NewClientConfigGetter(),
+			HTTPClientGetter:   controllers.NewHTTPClientGetter(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "VCluster")
+			os.Exit(1)
+		}
 	}
+
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
