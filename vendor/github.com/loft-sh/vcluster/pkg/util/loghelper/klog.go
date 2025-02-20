@@ -9,7 +9,7 @@ import (
 
 var klogRegEx1 = regexp.MustCompile(`^[A-Z][0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6}\s+[0-9]+\s([^]]+)] (.+)$`)
 
-var structuredComponent = regexp.MustCompile(`^([a-zA-Z0-9\-_]+)=`)
+var structuredComponent = regexp.MustCompile(`^([a-zA-Z\-_]+)=`)
 
 // https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md
 func PrintKlogLine(line string, args []interface{}) {
@@ -21,7 +21,7 @@ func PrintKlogLine(line string, args []interface{}) {
 
 	// try to parse structured logging
 	line, extraArgs := parseStructuredLogging(line)
-	klog.InfoSDepth(1, line, append(args, extraArgs...)...)
+	klog.InfoS(line, append(args, extraArgs...)...)
 }
 
 func parseStructuredLogging(line string) (string, []interface{}) {
@@ -30,7 +30,6 @@ func parseStructuredLogging(line string) (string, []interface{}) {
 	}
 
 	line = strings.TrimSpace(line)
-	originalLine := line
 
 	// parse message
 	message, line := parseQuotedMessage(line, true)
@@ -43,8 +42,7 @@ func parseStructuredLogging(line string) (string, []interface{}) {
 	retArgs := []interface{}{}
 	for line != "" {
 		if !structuredComponent.MatchString(line) {
-			// there seems to be a problem with parsing, so just return original line
-			return originalLine, nil
+			break
 		}
 
 		matches := structuredComponent.FindStringSubmatch(line)
@@ -54,12 +52,13 @@ func parseStructuredLogging(line string) (string, []interface{}) {
 			value, restOfLine := parseQuotedMessage(line, false)
 
 			message = value
-			line = strings.TrimSpace(restOfLine)
+			line = restOfLine
 		} else {
 			retArgs = append(retArgs, name)
 			value, restOfLine := parseQuotedMessage(line, false)
-			retArgs = append(retArgs, strings.TrimSpace(value))
-			line = strings.TrimSpace(restOfLine)
+			retArgs = append(retArgs, value)
+
+			line = restOfLine
 		}
 	}
 
@@ -104,8 +103,6 @@ func parseQuotedMessage(line string, allowSpace bool) (string, string) {
 		if nextSpace > 0 {
 			return strings.ReplaceAll(line[:nextSpace], `\"`, `"`), line[nextSpace+1:]
 		}
-
-		return strings.ReplaceAll(line, `\"`, `"`), ""
 	}
 
 	return strings.ReplaceAll(message, `\"`, `"`), line
