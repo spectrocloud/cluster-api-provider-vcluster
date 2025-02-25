@@ -361,11 +361,12 @@ func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alp
 	}
 
 	chartName := constants.DefaultVClusterChartName
-	if vCluster.Spec.HelmRelease != nil && vCluster.Spec.HelmRelease.Chart.Name != "" {
+	if vCluster.Spec.HelmRelease != nil && vCluster.Spec.HelmRelease.Chart.Name != "" && vCluster.Spec.HelmRelease.Chart.Name != constants.GenericVClusterChartName {
 		chartName = vCluster.Spec.HelmRelease.Chart.Name
 	}
 
 	var chartVersion string
+
 	if vCluster.Spec.HelmRelease != nil && vCluster.Spec.HelmRelease.Chart.Version != "" {
 		chartVersion = vCluster.Spec.HelmRelease.Chart.Version
 		// Remove 'v' prefix if present
@@ -374,6 +375,9 @@ func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alp
 		}
 	}
 
+	if chartVersion == "" {
+		chartVersion = constants.DefaultVClusterVersion
+	}
 	var values string
 	if vCluster.Spec.HelmRelease != nil && vCluster.Spec.HelmRelease.Values != "" {
 		values = vCluster.Spec.HelmRelease.Values

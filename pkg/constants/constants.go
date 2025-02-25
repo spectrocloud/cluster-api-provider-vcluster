@@ -9,6 +9,8 @@ var (
 	// DefaultVClusterChartName is the default chart name of the virtual cluster to use
 	DefaultVClusterChartName = "vcluster"
 
+	GenericVClusterChartName = "vcluster-generic"
+
 	// DefaultVClusterRepo is the default repo url of the virtual cluster to use
 	DefaultVClusterRepo = "https://charts.loft.sh"
 )
