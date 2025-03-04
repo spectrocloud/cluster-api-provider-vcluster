@@ -3,7 +3,6 @@ package helm
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -35,7 +34,7 @@ type UpgradeOptions struct {
 	Force           bool
 	CreateNamespace bool
 
-	InsecureSkipTlsVerify bool
+	InsecureSkipTLSVerify bool
 
 	ExtraArgs []string
 }
@@ -81,7 +80,6 @@ func (c *client) exec(args []string) error {
 		return nil
 	}
 
-	fmt.Println("helm " + strings.Join(args, " "))
 	cmd := exec.Command(c.helmPath, args...)
 	if c.stdout != nil {
 		cmd.Stdout = c.stdout
@@ -94,9 +92,12 @@ func (c *client) exec(args []string) error {
 		if strings.Contains(string(output), "release: not found") {
 			return nil
 		}
-
-		klog.Errorf("Error executing command: helm %s", strings.Join(args, " "))
-		klog.Errorf("Output: %s, Error: %v", string(output), err)
+		klog.TODO().Error(
+			err,
+			"error executing helm",
+			"args", args,
+			"output", string(output),
+		)
 		return fmt.Errorf("error executing helm %s: %s", args[0], string(output))
 	}
 
@@ -165,7 +166,7 @@ func (c *client) run(name, namespace string, options UpgradeOptions, command str
 	// Values
 	if options.Values != "" {
 		// Create temp file
-		tempFile, err := ioutil.TempFile("", "")
+		tempFile, err := os.CreateTemp("", "")
 		if err != nil {
 			return errors.Wrap(err, "create temp file")
 		}
@@ -188,7 +189,7 @@ func (c *client) run(name, namespace string, options UpgradeOptions, command str
 	}
 
 	// Set values
-	if options.SetValues != nil && len(options.SetValues) > 0 {
+	if len(options.SetValues) > 0 {
 		args = append(args, "--set")
 
 		setString := ""
@@ -204,7 +205,7 @@ func (c *client) run(name, namespace string, options UpgradeOptions, command str
 	}
 
 	// Set string values
-	if options.SetStringValues != nil && len(options.SetStringValues) > 0 {
+	if len(options.SetStringValues) > 0 {
 		args = append(args, "--set-string")
 
 		setString := ""
@@ -225,7 +226,7 @@ func (c *client) run(name, namespace string, options UpgradeOptions, command str
 	if options.Atomic {
 		args = append(args, "--atomic")
 	}
-	if options.InsecureSkipTlsVerify {
+	if options.InsecureSkipTLSVerify {
 		args = append(args, "--insecure-skip-tls-verify")
 	}
 
@@ -271,7 +272,7 @@ func WriteKubeConfig(configRaw *clientcmdapi.Config) (string, error) {
 	}
 
 	// Create temp file
-	tempFile, err := ioutil.TempFile("", "")
+	tempFile, err := os.CreateTemp("", "")
 	if err != nil {
 		return "", errors.Wrap(err, "create temp file")
 	}

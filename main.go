@@ -27,19 +27,20 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	infrastructurev1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
 	"github.com/loft-sh/cluster-api-provider-vcluster/controllers"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
-	"github.com/loft-sh/log"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"github.com/loft-sh/log/logr"
 	//+kubebuilder:scaffold:imports
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 var (
@@ -84,7 +85,14 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	var namespaces map[string]cache.Config
+	if namespace != "" {
+		namespaces = map[string]cache.Config{
+			namespace: {},
+		}
+	}
+
+	mgr, err := manager.New(ctrl.GetConfigOrDie(), manager.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
 			BindAddress: metricsAddr,
@@ -95,23 +103,27 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "4012c7fa.cluster.x-k8s.io",
+		Cache: cache.Options{
+			DefaultNamespaces: namespaces,
+		},
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
-	restConfig := mgr.GetConfig()
-
-	rawConfig, err := kubeconfighelper.ConvertRestConfigToRawConfig(restConfig)
+	rawConfig, err := kubeconfighelper.ConvertRestConfigToRawConfig(mgr.GetConfig())
 	if err != nil {
 		setupLog.Error(err, "unable to get config")
 		os.Exit(1)
 	}
 
-	clientSet, err := kubernetes.NewForConfig(restConfig)
+	log, err := logr.NewLoggerWithOptions(
+		logr.WithOptionsFromEnv(),
+		logr.WithComponentName("vcluster-controller"),
+	)
 	if err != nil {
-		setupLog.Error(err, "unable to get client set")
+		setupLog.Error(err, "unable to setup logger")
 		os.Exit(1)
 	}
 
@@ -123,31 +135,34 @@ func main() {
 		}
 	} else {
 		if err = (&controllers.VClusterReconciler{
-			Client:      mgr.GetClient(),
-			Clientset:   clientSet,
-			HelmClient:  helm.NewClient(rawConfig),
-			HelmSecrets: helm.NewSecrets(mgr.GetClient()),
-			Log:         log.GetInstance(),
-			Scheme:      mgr.GetScheme(),
+			Client:             mgr.GetClient(),
+			HelmClient:         helm.NewClient(rawConfig),
+			HelmSecrets:        helm.NewSecrets(mgr.GetClient()),
+			Log:                log,
+			Scheme:             mgr.GetScheme(),
+			ClientConfigGetter: controllers.NewClientConfigGetter(),
+			HTTPClientGetter:   controllers.NewHTTPClientGetter(),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "VCluster")
 			os.Exit(1)
 		}
 	}
+
 	//+kubebuilder:scaffold:builder
 
-	if err = mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
 	}
-	if err = mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
 
 	setupLog.Info("starting manager")
-	if err = mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+
 }

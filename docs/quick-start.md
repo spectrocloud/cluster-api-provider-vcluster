@@ -3,7 +3,7 @@ In this guide we will deploy Nginx in a kind cluster and verify connectivity wit
 
 ## Prerequisites
 Ensure that you have the following installed:
-- [clusterctl](https://cluster-api.sigs.k8s.io/user/quick-start.html#install-clusterctl) v1.2 or greater
+- [clusterctl](https://cluster-api.sigs.k8s.io/user/quick-start.html#install-clusterctl) v1.7.8 or greater
 - [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 - [kind](https://kind.sigs.k8s.io/)
 - [vcluster CLI](https://www.vcluster.com/docs/getting-started/setup)
@@ -22,7 +22,7 @@ Using `kind` we will create a management cluster for Cluster API to use.
 kind create cluster
 
 Creating cluster "kind" ...
- ✓ Ensuring node image (kindest/node:v1.23.4) 🖼
+ ✓ Ensuring node image (kindest/node:v1.30.0) 🖼
  ✓ Preparing nodes 📦  
  ✓ Writing configuration 📜 
  ✓ Starting control-plane 🕹️ 
@@ -62,13 +62,11 @@ Next we will create our virtual cluster within our `kind` cluster.
 ```shell
 export CLUSTER_NAME=kind
 export CLUSTER_NAMESPACE=vcluster
-export KUBERNETES_VERSION=1.23.4 
-export HELM_VALUES="service:\n  type: NodePort"
+export VCLUSTER_YAML=""
 
 kubectl create namespace ${CLUSTER_NAMESPACE}
 clusterctl generate cluster ${CLUSTER_NAME} \
     --infrastructure vcluster \
-    --kubernetes-version ${KUBERNETES_VERSION} \
     --target-namespace ${CLUSTER_NAMESPACE} | kubectl apply -f -
 ```
 
@@ -122,7 +120,7 @@ namespace/demo-nginx created
 ```
 
 ```shell
-# First we create a namespace for nginx
+# Then let's create the deployment for nginx
 kubectl create deployment nginx-deployment -n demo-nginx --image=nginx
 
 deployment.apps/nginx-deployment created

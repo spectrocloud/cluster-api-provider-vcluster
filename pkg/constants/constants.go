@@ -4,10 +4,12 @@ import "os"
 
 var (
 	// DefaultVClusterVersion is the default version of the virtual cluster to use
-	DefaultVClusterVersion = "0.18.1"
+	DefaultVClusterVersion = "0.22.0"
 
 	// DefaultVClusterChartName is the default chart name of the virtual cluster to use
 	DefaultVClusterChartName = "vcluster"
+
+	GenericVClusterChartName = "vcluster-generic"
 
 	// DefaultVClusterRepo is the default repo url of the virtual cluster to use
 	DefaultVClusterRepo = "https://charts.loft.sh"

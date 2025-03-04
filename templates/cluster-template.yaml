@@ -17,13 +17,12 @@ kind: VCluster
 metadata:
   name: ${CLUSTER_NAME}
 spec:
-  kubernetesVersion: "${KUBERNETES_VERSION:=}"
   helmRelease:
-    values: "${HELM_VALUES:=}"
+    values: "${VCLUSTER_YAML:=}"
     chart: 
-      name: ${CHART_NAME:=null}
-      repo: ${CHART_REPO:=null}
-      version: ${CHART_VERSION:=null}
+      name: ${CHART_NAME:=vcluster}
+      repo: ${CHART_REPO:=https://charts.loft.sh}
+      version: ${CHART_VERSION:=""}
   controlPlaneEndpoint:
     host: ${VCLUSTER_HOST:=""}
     port: ${VCLUSTER_PORT:=0}
