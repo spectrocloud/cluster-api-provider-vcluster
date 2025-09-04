@@ -1,7 +1,9 @@
 package v1alpha1
 
 import (
+	"context"
 	"fmt"
+
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -24,23 +26,24 @@ func (r *VCluster) SetupWebhookWithManager(mgr ctrl.Manager) error {
 //+kubebuilder:webhook:path=/validate-infrastructure-cluster-x-k8s-io-v1alpha1-vcluster,mutating=false,failurePolicy=fail,sideEffects=None,groups=infrastructure.cluster.x-k8s.io,resources=vclusters,verbs=create;update;delete,versions=v1alpha1,name=vvcluster.kb.io,admissionReviewVersions=v1
 
 var (
-	_ webhook.Defaulter = &VCluster{}
-	_ webhook.Validator = &VCluster{}
+	_ webhook.CustomDefaulter = &VCluster{}
+	_ webhook.CustomValidator = &VCluster{}
 )
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
-func (r *VCluster) Default() {
+func (r *VCluster) Default(ctx context.Context, obj runtime.Object) error {
 	vclusterlog.Info("default", "name", r.Name)
+	return nil
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *VCluster) ValidateCreate() (admission.Warnings, error) {
+func (r *VCluster) ValidateCreate(ctx context.Context, oldObj runtime.Object) (admission.Warnings, error) {
 	vclusterlog.Info("validate create", "name", r.Name)
 	return nil, nil
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *VCluster) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
+func (r *VCluster) ValidateUpdate(ctx context.Context, old runtime.Object, new runtime.Object) (admission.Warnings, error) {
 	vclusterlog.Info("validate update", "name", r.Name)
 	oldVcluster := old.(*VCluster)
 
@@ -52,7 +55,7 @@ func (r *VCluster) ValidateUpdate(old runtime.Object) (admission.Warnings, error
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *VCluster) ValidateDelete() (admission.Warnings, error) {
+func (r *VCluster) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	vclusterlog.Info("validate delete", "name", r.Name)
 	return nil, nil
 }
