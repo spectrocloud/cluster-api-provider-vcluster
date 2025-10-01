@@ -278,12 +278,12 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 }
 
 func (r *VClusterReconciler) pauseIfNeeded(ctx context.Context, vCluster *v1alpha1.VCluster) error {
-	v, ok := vCluster.Annotations[vconstants.PausedAnnotation]
+	v, ok := vCluster.Annotations[vconstants.PausedAnnotation(false)]
 	if !ok || v != "true" {
 		return nil
 	}
 	baseLogger := log.GetInstance()
-	if err := lifecycle.PauseVCluster(ctx, r.Clientset, vCluster.Name, vCluster.Namespace, baseLogger); err != nil {
+	if err := lifecycle.PauseVCluster(ctx, r.Clientset, vCluster.Name, vCluster.Namespace, false, baseLogger); err != nil {
 		return err
 	}
 	if err := lifecycle.DeleteMultiNamespaceVClusterWorkloads(ctx, r.Clientset, "vcluster.loft.sh/managed-by="+vCluster.Name, vCluster.Namespace, baseLogger); err != nil {
@@ -296,13 +296,13 @@ func (r *VClusterReconciler) pauseIfNeeded(ctx context.Context, vCluster *v1alph
 }
 
 func (r *VClusterReconciler) resumeIfNeeded(ctx context.Context, vCluster *v1alpha1.VCluster) error {
-	v, ok := vCluster.Annotations[vconstants.PausedAnnotation]
+	v, ok := vCluster.Annotations[vconstants.PausedAnnotation(false)]
 	if !ok || v != "false" || !conditions.IsTrue(vCluster, v1alpha1.PausedCondition) {
 		return nil
 	}
 
 	baseLogger := log.GetInstance()
-	if err := lifecycle.ResumeVCluster(ctx, r.Clientset, vCluster.Name, vCluster.Namespace, baseLogger); err != nil {
+	if err := lifecycle.ResumeVCluster(ctx, r.Clientset, vCluster.Name, vCluster.Namespace, false, baseLogger); err != nil {
 		return err
 	}
 

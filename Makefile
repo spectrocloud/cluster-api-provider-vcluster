@@ -11,7 +11,7 @@ BUILDER_3RDPARTY_VERSION ?= $(shell echo $(PROD_VERSION) | cut -d. -f1,2)
 BUILD_DATE:=$(shell date +%Y%m%d)
 IMG_NAME ?= cluster-api-virtual-controller
 # IMG_URL ?= gcr.io/spectro-images-public/release/cluster-api-virtual/
-IMG_URL ?= gcr.io/spectro-dev-public/${USER}/cluster-api-virtual
+IMG_URL ?= us-east1-docker.pkg.dev/spectro-images/dev/${USER}/cluster-api-virtual
 IMG_TAG ?= v0.2.2-spectro-${BUILD_DATE}
 IMG ?= $(IMG_URL)/$(IMG_NAME):$(IMG_TAG)
 BUILD_ARGS = --build-arg CRYPTO_LIB=${FIPS_ENABLE} --build-arg BUILDER_GOLANG_VERSION=${BUILDER_GOLANG_VERSION} --build-arg BUILDER_3RDPARTY_VERSION=${BUILDER_3RDPARTY_VERSION}
@@ -20,7 +20,7 @@ BUILD_ARGS = --build-arg CRYPTO_LIB=${FIPS_ENABLE} --build-arg BUILDER_GOLANG_VE
 ENVTEST_K8S_VERSION = 1.23
 # HELM_VERSION = 3.12.0
 HELM_VERSION = 3.11.2-20230627
-VCLUSTER_CHART_VERSION = 0.22.0
+VCLUSTER_CHART_VERSION = 0.27.1
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -137,7 +137,7 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 .PHONY: controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.8.0)
+	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.2)
 
 KUSTOMIZE = $(shell pwd)/bin/kustomize
 .PHONY: kustomize
