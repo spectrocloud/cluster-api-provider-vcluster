@@ -98,7 +98,8 @@ func main() {
 			BindAddress: metricsAddr,
 		},
 		WebhookServer: webhook.NewServer(webhook.Options{
-			Port: webhookPort,
+			Port:    webhookPort,
+			CertDir: webhookCertDir,
 		}),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
