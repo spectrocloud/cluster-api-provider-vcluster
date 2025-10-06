@@ -15,9 +15,29 @@ import (
 var vclusterlog = logf.Log.WithName("vcluster-resource")
 
 func (r *VCluster) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
+	// Create webhook builder with explicit custom interface registration
+	builder := ctrl.NewWebhookManagedBy(mgr).
 		For(r).
-		Complete()
+		WithDefaulter(r).
+		WithValidator(r)
+
+	// Complete webhook setup
+	err := builder.Complete()
+	if err != nil {
+		vclusterlog.Error(err, "Failed to setup webhook with manager")
+		return err
+	}
+
+	vclusterlog.Info("CustomDefaulter interface", "implemented", func() bool {
+		var _ admission.CustomDefaulter = r
+		return true
+	}())
+	vclusterlog.Info("CustomValidator interface", "implemented", func() bool {
+		var _ admission.CustomValidator = r
+		return true
+	}())
+
+	return nil
 }
 
 //+kubebuilder:webhook:path=/mutate-infrastructure-cluster-x-k8s-io-v1alpha1-vcluster,mutating=true,failurePolicy=fail,sideEffects=None,groups=infrastructure.cluster.x-k8s.io,resources=vclusters,verbs=create;update,versions=v1alpha1,name=mvcluster.kb.io,admissionReviewVersions=v1

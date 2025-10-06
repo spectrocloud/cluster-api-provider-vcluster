@@ -39,6 +39,7 @@ import (
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
 	"github.com/loft-sh/log/logr"
+
 	//+kubebuilder:scaffold:imports
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
@@ -100,6 +101,7 @@ func main() {
 		WebhookServer: webhook.NewServer(webhook.Options{
 			Port:    webhookPort,
 			CertDir: webhookCertDir,
+			Host:    "", // Defaults to ""
 		}),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
@@ -130,10 +132,16 @@ func main() {
 
 	// activate either webhook or controller - not both
 	if webhookPort != 0 {
+		setupLog.Info("Setting up webhook server", "port", webhookPort, "certDir", webhookCertDir)
+
+		webhookServer := mgr.GetWebhookServer()
+		setupLog.Info("Webhook server instance retrieved", "server", webhookServer != nil)
+
 		if err = (&infrastructurev1alpha1.VCluster{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "VCluster")
 			os.Exit(1)
 		}
+		setupLog.Info("Webhook server setup completed")
 	} else {
 		if err = (&controllers.VClusterReconciler{
 			Client:             mgr.GetClient(),
@@ -161,6 +169,11 @@ func main() {
 	}
 
 	setupLog.Info("starting manager")
+	if webhookPort != 0 {
+		setupLog.Info("Manager configured with webhook server", "webhookPort", webhookPort)
+	} else {
+		setupLog.Info("Manager configured without webhook server")
+	}
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
