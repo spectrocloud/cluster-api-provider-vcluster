@@ -11,10 +11,10 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/loft-sh/log v0.0.0-20240219160058-26d83ffb46ac
 	github.com/loft-sh/utils v0.0.29
-	github.com/loft-sh/vcluster v0.27.1
+	github.com/loft-sh/vcluster v0.26.3
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/ginkgo/v2 v2.22.0
-	github.com/onsi/gomega v1.36.0
+	github.com/onsi/gomega v1.36.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -24,7 +24,7 @@ require (
 	k8s.io/client-go v0.33.4
 	k8s.io/klog/v2 v2.130.1
 	sigs.k8s.io/cluster-api v1.9.3
-	sigs.k8s.io/controller-runtime v0.20.1
+	sigs.k8s.io/controller-runtime v0.20.4
 	sigs.k8s.io/logtools v0.8.1
 )
 
@@ -81,7 +81,7 @@ require (
 	github.com/emicklei/go-restful/v3 v3.12.1 // indirect
 	github.com/esimonov/ifshort v1.0.4 // indirect
 	github.com/ettle/strcase v0.2.0 // indirect
-	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
+	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
