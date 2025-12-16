@@ -4,11 +4,15 @@ ARG BUILDER_3RDPARTY_VERSION
 FROM --platform=$TARGETPLATFORM gcr.io/spectro-images-public/builders/spectro-third-party:${BUILDER_3RDPARTY_VERSION} as thirdparty
 FROM --platform=linux/amd64 gcr.io/spectro-images-public/golang:${BUILDER_GOLANG_VERSION}-alpine as builder
 
-ENV BIN_TYPE=${CRYPTO_LIB:+vertex}
-ENV BIN_TYPE=${BIN_TYPE:-palette}
-
 ARG TARGETOS
 ARG TARGETARCH
+ARG CRYPTO_LIB
+
+ENV BIN_TYPE=${CRYPTO_LIB:+vertex}
+ENV BIN_TYPE=${BIN_TYPE:-palette}
+ENV GOEXPERIMENT=${CRYPTO_LIB:+boringcrypto}
+ENV CGO_ENABLED=${CRYPTO_LIB:+1}
+ENV CGO_ENABLED=${CGO_ENABLED:-0}
 
 WORKDIR /workspace
 
@@ -35,8 +39,11 @@ COPY pkg/ pkg/
 # Copy vCluster charts
 COPY charts/ /charts/
 
-# Build
-RUN CGO_ENABLED=0 go build -a -o manager main.go
+RUN if [ "${CRYPTO_LIB}" ]; then \
+      go-build-fips.sh -a -ldflags="-linkmode=external -extldflags=-static" -o manager main.go; \
+    else \
+      go-build-static.sh -a -o manager main.go; \
+    fi
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
