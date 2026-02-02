@@ -180,11 +180,12 @@ release: manifests kustomize ## Builds the manifests to publish with a release.
 ##@ Binaries
 
 .PHONY: binaries
-binaries: download-chart ## Download binaries
+binaries: package-charts
 
 HELM=$(BIN_DIR)/helm-$(GOOS)-$(GOARCH)
 
-.PHONY: download-chart
-download-chart: bin-dir ## Download vcluster chart
-	helm repo add loft https://charts.loft.sh
-	helm pull loft/vcluster --version $(VCLUSTER_CHART_VERSION) -d $(CHARTS_DIR)
+.PHONY: package-charts
+package-charts: ## Package vcluster chart from source
+	@echo "Packaging vcluster chart..."
+	@cd $(CHARTS_DIR) && helm package vcluster-$(VCLUSTER_CHART_VERSION) --destination .
+	@echo "vcluster chart packaged successfully"
