@@ -1987,6 +1987,19 @@
           "$ref": "#/$defs/PlatformConfig",
           "type": "object",
           "description": "platform holds platform configuration"
+        },
+        "palette": {
+          "type": "object",
+          "properties": {
+            "clientConfig": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Client configuration for OIDC kubeconfig generation. Supports oidc-issuer-url, oidc-client-id, oidc-client-secret, oidc-extra-scope."
+            }
+          },
+          "description": "Palette-specific configuration for vCluster"
         }
       },
       "type": "object",
