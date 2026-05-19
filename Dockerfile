@@ -1,8 +1,10 @@
 ARG BUILDER_GOLANG_VERSION
 ARG BUILDER_3RDPARTY_VERSION
 # Build the manager binary
-FROM --platform=$TARGETPLATFORM us-docker.pkg.dev/palette-images/third-party/spectro-third-party:${BUILDER_3RDPARTY_VERSION} as thirdparty
-FROM --platform=linux/amd64 us-docker.pkg.dev/palette-images/build-base-images/golang:${BUILDER_GOLANG_VERSION}-alpine as builder
+FROM --platform=$TARGETPLATFORM us-central1-docker.pkg.dev/palette-images-dev/hardened-images/third-party/spectro-third-party:{3RDPARTY_VERSION} as thirdparty
+FROM --platform=linux/amd64 us-central1-docker.pkg.dev/palette-images-dev/hardened-images/builder/golang:{BUILDER_GOLANG_VERSION}-alpine as builder
+
+
 
 ARG TARGETOS
 ARG TARGETARCH

@@ -4,11 +4,10 @@
 .DEFAULT_GOAL:=help
 
 VERSION_SUFFIX ?= -dev
-PROD_VERSION ?= 4.8.0${VERSION_SUFFIX}
-BUILDER_GOLANG_VERSION ?= 1.24.13
+BUILDER_GOLANG_VERSION ?= 1.26.3
 TARGETARCH ?= amd64
-BUILDER_3RDPARTY_VERSION ?= $(shell echo $(PROD_VERSION) | cut -d. -f1,2)
-BUILD_DATE:=$(shell date +%Y%m%d)
+BUILDER_3RDPARTY_VERSION ?= 4.9
+BUILD_DATE:=$(shell date +%Y%m%d%H%M)
 IMG_NAME ?= cluster-api-virtual-controller
 # IMG_URL ?= gcr.io/spectro-images-public/release/cluster-api-virtual/
 IMG_URL ?= us-east1-docker.pkg.dev/spectro-images/dev/${USER}/cluster-api-virtual
