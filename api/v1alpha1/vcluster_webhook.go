@@ -15,11 +15,14 @@ import (
 var vclusterlog = logf.Log.WithName("vcluster-resource")
 
 func (r *VCluster) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	// Create webhook builder with explicit custom interface registration
-	builder := ctrl.NewWebhookManagedBy(mgr).
-		For(r).
-		WithDefaulter(r).
-		WithValidator(r)
+	// Create webhook builder with explicit custom interface registration.
+	// controller-runtime v0.23 made WebhookManagedBy generic: the object is passed to the
+	// constructor (no more .For()), and WithDefaulter/WithValidator now expect the generic
+	// Defaulter[T]/Validator[T]. Keep using the classic CustomDefaulter/CustomValidator that
+	// VCluster implements via the WithCustom* methods.
+	builder := ctrl.NewWebhookManagedBy(mgr, r).
+		WithCustomDefaulter(r).
+		WithCustomValidator(r)
 
 	// Complete webhook setup
 	err := builder.Complete()
