@@ -6,7 +6,7 @@
 VERSION_SUFFIX ?= -dev
 BUILDER_GOLANG_VERSION ?= 1.26.5
 TARGETARCH ?= amd64
-BUILDER_3RDPARTY_VERSION ?= 4.9.c
+BUILDER_3RDPARTY_VERSION ?= 4.9
 BUILD_DATE:=$(shell date +%Y%m%d%H%M)
 IMG_NAME ?= cluster-api-virtual-controller
 # IMG_URL ?= gcr.io/spectro-images-public/release/cluster-api-virtual/
