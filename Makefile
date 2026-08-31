@@ -11,7 +11,8 @@ BUILD_DATE:=$(shell date +%Y%m%d%H%M)
 IMG_NAME ?= cluster-api-virtual-controller
 # IMG_URL ?= gcr.io/spectro-images-public/release/cluster-api-virtual/
 IMG_URL ?= us-east1-docker.pkg.dev/spectro-images/dev/${USER}/cluster-api-virtual
-IMG_TAG ?= v0.2.2-spectro-${BUILD_DATE}
+SPECTRO_VERSION ?= latest
+IMG_TAG ?= v0.2.2-spectro-${SPECTRO_VERSION}
 IMG ?= $(IMG_URL)/$(IMG_NAME):$(IMG_TAG)
 BUILD_ARGS = --build-arg CRYPTO_LIB=${FIPS_ENABLE} --build-arg BUILDER_GOLANG_VERSION=${BUILDER_GOLANG_VERSION} --build-arg BUILDER_3RDPARTY_VERSION=${BUILDER_3RDPARTY_VERSION}
 
