@@ -19,17 +19,10 @@ BUILD_ARGS = --build-arg CRYPTO_LIB=${FIPS_ENABLE} --build-arg BUILDER_GOLANG_VE
 ENVTEST_K8S_VERSION = 1.23
 # HELM_VERSION = 3.12.0
 HELM_VERSION = 3.11.2-20230627
-<<<<<<< Updated upstream
-VCLUSTER_CHART_VERSION = 0.34.7
+VCLUSTER_CHART_VERSION = 0.36.1
 # Legacy chart versions kept bundled so already-deployed clusters that pin an older version
 # keep reconciling against a local chart (no auto-upgrade) and can be upgraded on demand.
 VCLUSTER_LEGACY_CHART_VERSIONS = 0.27.3
-=======
-# Package both the legacy chart (existing clusters / k3s migration) and the new default.
-VCLUSTER_CHART_VERSIONS = 0.27.3 0.36.1
-# Kept for callers that still reference a single version; defaults to the new chart.
-VCLUSTER_CHART_VERSION = 0.36.1
->>>>>>> Stashed changes
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -194,10 +187,11 @@ binaries: package-charts
 HELM=$(BIN_DIR)/helm-$(GOOS)-$(GOARCH)
 
 .PHONY: package-charts
-package-charts: ## Package vcluster charts from source (legacy + new default)
-	@echo "Packaging vcluster charts..."
-	@for ver in $(VCLUSTER_CHART_VERSIONS); do \
-		echo "  packaging vcluster-$$ver..."; \
-		helm package $(CHARTS_DIR)/vcluster-$$ver --destination $(CHARTS_DIR); \
+package-charts: ## Package vcluster charts (default + retained legacy versions) from source
+	@echo "Packaging vcluster chart $(VCLUSTER_CHART_VERSION)..."
+	@cd $(CHARTS_DIR) && helm package vcluster-$(VCLUSTER_CHART_VERSION) --destination .
+	@cd $(CHARTS_DIR) && for v in $(VCLUSTER_LEGACY_CHART_VERSIONS); do \
+		echo "Packaging legacy vcluster chart $$v..."; \
+		helm package vcluster-$$v --destination . ; \
 	done
 	@echo "vcluster charts packaged successfully"
