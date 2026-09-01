@@ -57,7 +57,7 @@ tests:
           count: 1
       - lengthEqual:
           path: rules
-          count: 11
+          count: 10
       - contains:
           path: rules
           count: 1
@@ -86,7 +86,7 @@ tests:
           count: 1
       - lengthEqual:
           path: rules
-          count: 10
+          count: 9
       - contains:
           path: rules
           count: 1
@@ -304,7 +304,7 @@ tests:
           value: Role
       - lengthEqual:
           path: rules
-          count: 13
+          count: 12
       - contains:
           path: rules
           content:
@@ -397,6 +397,57 @@ tests:
             verbs:
               ["create", "delete", "patch", "update", "get", "list", "watch"]
 
+  - it: gateway api umbrella enables gateways and httproutes rules
+    set:
+      sync:
+        toHost:
+          gatewayApi:
+            enabled: true
+    release:
+      name: my-release
+      namespace: my-namespace
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: Role
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["gateway.networking.k8s.io"]
+            resources: ["gateways"]
+            verbs:
+              ["create", "delete", "patch", "update", "get", "list", "watch"]
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["gateway.networking.k8s.io"]
+            resources: ["httproutes"]
+            verbs:
+              ["create", "delete", "patch", "update", "get", "list", "watch"]
+
+  - it: gateway api explicit gateways toggle enables gateways rule
+    set:
+      sync:
+        toHost:
+          gatewayApi:
+            gateways:
+              enabled: true
+    release:
+      name: my-release
+      namespace: my-namespace
+    asserts:
+      - hasDocuments:
+          count: 1
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["gateway.networking.k8s.io"]
+            resources: ["gateways"]
+            verbs:
+              ["create", "delete", "patch", "update", "get", "list", "watch"]
+
   - it: private nodes
     set:
       privateNodes:
@@ -429,14 +480,16 @@ tests:
             verbs:
               ["create", "delete", "patch", "update", "get", "list", "watch"]
 
-  - it: volume snapshot rules
+  - it: embedded etcd grants lease verbs
+    # Embedded etcd uses a host-namespace Lease for the health-checker leader
+    # election. Without this rule, single-replica embedded-etcd deployments
+    # spin in lease-acquire retries.
     set:
-      rbac:
-        enableVolumeSnapshotRules:
-          enabled: true
-    release:
-      name: my-release
-      namespace: my-namespace
+      controlPlane:
+        backingStore:
+          etcd:
+            embedded:
+              enabled: true
     asserts:
       - hasDocuments:
           count: 1
@@ -446,10 +499,25 @@ tests:
       - contains:
           path: rules
           content:
-            apiGroups: ["snapshot.storage.k8s.io"]
-            resources: ["volumesnapshots"]
+            apiGroups: ["coordination.k8s.io"]
+            resources: ["leases"]
             verbs:
-              ["create", "delete", "patch", "update", "get", "list"]
+              ["create", "delete", "patch", "update", "get", "list", "watch"]
+
+  - it: default config does not grant lease verbs
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: Role
+      - notContains:
+          path: rules
+          content:
+            apiGroups: ["coordination.k8s.io"]
+            resources: ["leases"]
+            verbs:
+              ["create", "delete", "patch", "update", "get", "list", "watch"]
 
   - it: resourceClaims rules
     set:

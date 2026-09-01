@@ -1,8 +1,8 @@
 apiVersion: v2
-appVersion: 0.34.7
+appVersion: 0.36.1
 description: vcluster - Virtual Kubernetes Clusters
 home: https://vcluster.com
-icon: https://static.loft.sh/branding/logos/vcluster/vertical/vcluster_vertical.svg
+icon: https://static.loft.sh/branding/logos/vcluster/vertical/2025/vcluster_vertical.svg
 keywords:
 - developer
 - development
@@ -16,11 +16,11 @@ keywords:
 - vcluster
 - vclusters
 maintainers:
-- email: info@loft.sh
-  name: Loft Labs, Inc.
+- email: info@vcluster.com
+  name: vCluster Labs, Inc.
   url: https://twitter.com/loft_sh
 name: vcluster
 sources:
 - https://github.com/loft-sh/vcluster
 type: application
-version: 0.34.7
+version: 0.36.1

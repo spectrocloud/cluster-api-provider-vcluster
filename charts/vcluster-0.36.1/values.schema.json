@@ -32,6 +32,76 @@
       "type": "object",
       "description": "APIServiceService holds the service name and namespace of the host apiservice."
     },
+    "ArgoCDApplication": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name specifies the stable identifier of the argo cd application. It is used to derive generated\nArgoCDApplication resource names and the final Argo CD application name.\n+optional"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "DisplayName specifies the display name of the argo cd application.\n+optional"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target specifies the target of the argo cd application. This can be \"vCluster\" or \"host\". Defaults to \"vCluster\".\n+optional"
+        },
+        "inline": {
+          "type": "object",
+          "description": "Inline specifies the inline argo cd application definition. This requires the argo cd integration to be enabled.\n+optional"
+        },
+        "template": {
+          "$ref": "#/$defs/ArgoCDApplicationTemplate",
+          "description": "Template specifies the argo cd application template to use. This requires the argo cd integration to be enabled.\n+optional"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "ArgoCDApplication holds argo cd application configuration."
+    },
+    "ArgoCDApplicationTemplate": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name specifies the name of the argo cd application template\n+optional"
+        },
+        "parameters": {
+          "type": "object",
+          "description": "Parameters specifies the parameters to pass to the argo cd application template.\n+optional"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ArgoCDDeploy": {
+      "properties": {
+        "applications": {
+          "items": {
+            "$ref": "#/$defs/ArgoCDApplication"
+          },
+          "type": "array",
+          "description": "Applications specifies the applications to deploy. This requires the argo cd integration to be enabled.\n+optional"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "ArgoCDDeploy holds argo cd deploy configuration."
+    },
+    "ArgoCDIntegration": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enabled defines if argo cd integration is enabled\n+optional"
+        },
+        "connector": {
+          "type": "string",
+          "description": "Connector specifies the argo cd connector name\n+optional"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "ArgoCDIntegration holds argo cd integration configuration."
+    },
     "AutoUpgrade": {
       "properties": {
         "enabled": {
@@ -1176,7 +1246,7 @@
       "properties": {
         "afterInactivity": {
           "type": "string",
-          "description": "AfterInactivity specifies after how long of inactivity the virtual cluster will be deleted.\nUses Go duration format (e.g., \"720h\" for 30 days).\n+optional"
+          "description": "AfterInactivity specifies after how long of inactivity the tenant cluster will be deleted.\nUses Go duration format (e.g., \"720h\" for 30 days).\n+optional"
         }
       },
       "additionalProperties": false,
@@ -1242,7 +1312,11 @@
         },
         "volumeSnapshotController": {
           "$ref": "#/$defs/VolumeSnapshotController",
-          "description": "VolumeSnapshotController holds dedicated CSI snapshot-controller configuration."
+          "description": "VolumeSnapshotController holds dedicated CSI snapshot-controller configuration.\nDeprecated: Removed in 0.36.0. Setting this value is rejected by the Helm chart; remove it from your config."
+        },
+        "argoCD": {
+          "$ref": "#/$defs/ArgoCDDeploy",
+          "description": "ArgoCD holds dedicated configuration for argoCD Apps to deploy"
         }
       },
       "additionalProperties": false,
@@ -1390,6 +1464,10 @@
         "weight": {
           "type": "integer",
           "description": "Weight is the weight of this node pool."
+        },
+        "profile": {
+          "type": "string",
+          "description": "Profile references a NodeProfile applied to nodes created by this pool."
         }
       },
       "additionalProperties": false,
@@ -2439,6 +2517,47 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "FromHostGateways": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enabled defines if this option should be enabled."
+        },
+        "patches": {
+          "items": {
+            "$ref": "#/$defs/TranslatePatch"
+          },
+          "type": "array",
+          "description": "Patches patch the resource according to the provided specification."
+        },
+        "selector": {
+          "$ref": "#/$defs/StandardLabelSelector",
+          "description": "Selector defines the selector to use for the resource. If not set, all resources of that type will be synced."
+        },
+        "mappings": {
+          "$ref": "#/$defs/FromHostMappings",
+          "description": "Mappings define control plane Gateway namespace/name to tenant-facing namespace/name placement."
+        },
+        "allowedRoutes": {
+          "$ref": "#/$defs/GatewayAllowedRoutesConfig",
+          "description": "AllowedRoutes configures the tenant-facing allowedRoutes policy shown on imported Gateways and enforced for Routes."
+        },
+        "status": {
+          "$ref": "#/$defs/GatewayImportStatus",
+          "description": "Status configures how Gateway status is mirrored."
+        },
+        "metadata": {
+          "$ref": "#/$defs/GatewayImportMetadata",
+          "description": "Metadata configures imported Gateway metadata visibility."
+        },
+        "sanitize": {
+          "$ref": "#/$defs/GatewayImportSanitize",
+          "description": "Sanitize configures sensitive control plane field sanitization."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "FromHostMappings": {
       "properties": {
         "byName": {
@@ -2446,7 +2565,122 @@
             "type": "string"
           },
           "type": "object",
-          "description": "ByName is a map of host-object-namespace/host-object-name: virtual-object-namespace/virtual-object-name.\nThere are several wildcards supported:\n1. To match all objects in host namespace and sync them to different namespace in vCluster:\nbyName:\n  \"foo/*\": \"foo-in-virtual/*\"\n2. To match specific object in the host namespace and sync it to the same namespace with the same name:\nbyName:\n  \"foo/my-object\": \"foo/my-object\"\n3. To match specific object in the host namespace and sync it to the same namespace with different name:\nbyName:\n  \"foo/my-object\": \"foo/my-virtual-object\"\n4. To match all objects in the vCluster host namespace and sync them to a different namespace in vCluster:\nbyName:\n  \"\": \"my-virtual-namespace/*\"\n5. To match specific objects in the vCluster host namespace and sync them to a different namespace in vCluster:\nbyName:\n  \"/my-object\": \"my-virtual-namespace/my-object\""
+          "description": "ByName is a map of control-plane-object-namespace/control-plane-object-name: tenant-object-namespace/tenant-object-name.\nThere are several wildcards supported:\n1. To match all objects in a control plane namespace and sync them to a different namespace in the tenant cluster:\nbyName:\n  \"foo/*\": \"foo-in-virtual/*\"\n2. To match a specific object in the control plane namespace and sync it to the same namespace with the same name:\nbyName:\n  \"foo/my-object\": \"foo/my-object\"\n3. To match a specific object in the control plane namespace and sync it to the same namespace with a different name:\nbyName:\n  \"foo/my-object\": \"foo/my-virtual-object\"\n4. To match all objects in the vCluster namespace and sync them to a different namespace in the tenant cluster:\nbyName:\n  \"\": \"my-virtual-namespace/*\"\n5. To match specific objects in the vCluster namespace and sync them to a different namespace in the tenant cluster:\nbyName:\n  \"/my-object\": \"my-virtual-namespace/my-object\""
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GatewayAPIEnableSwitchWithPatches": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enabled defines if this option should be enabled."
+        },
+        "patches": {
+          "items": {
+            "$ref": "#/$defs/TranslatePatch"
+          },
+          "type": "array",
+          "description": "Patches patch the resource according to the provided specification."
+        },
+        "httpRoutes": {
+          "$ref": "#/$defs/EnableSwitchWithPatches",
+          "description": "HTTPRoutes configures HTTPRoute sync to the control plane cluster."
+        },
+        "gateways": {
+          "$ref": "#/$defs/EnableSwitchWithPatches",
+          "description": "Gateways configures tenant-created Gateway sync to the control plane cluster."
+        },
+        "tlsRoutes": {
+          "$ref": "#/$defs/EnableSwitchWithPatches",
+          "description": "TLSRoutes configures TLSRoute sync to the control plane cluster."
+        },
+        "backendTLSPolicies": {
+          "$ref": "#/$defs/EnableSwitchWithPatches",
+          "description": "BackendTLSPolicies configures BackendTLSPolicy sync to the control plane cluster."
+        },
+        "referenceGrants": {
+          "$ref": "#/$defs/EnableAutoSwitchWithPatches",
+          "description": "ReferenceGrants configures ReferenceGrant sync to the control plane cluster. Enabled may be \"auto\", \"true\", or \"false\".\nIn auto mode grants follow route sync and are validated within the tenant cluster; they sync to the control plane cluster only when namespace sync is also enabled."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GatewayAllowedRoutesConfig": {
+      "properties": {
+        "defaultVirtualNamespacePolicy": {
+          "$ref": "#/$defs/GatewayVirtualNamespacePolicy"
+        },
+        "overrides": {
+          "items": {
+            "$ref": "#/$defs/GatewayAllowedRoutesPolicyOverride"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GatewayAllowedRoutesPolicyOverride": {
+      "properties": {
+        "hostNamespace": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "virtualNamespacePolicy": {
+          "$ref": "#/$defs/GatewayVirtualNamespacePolicy"
+        },
+        "allowedHostnames": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GatewayImportMetadata": {
+      "properties": {
+        "exposeSourceGateway": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GatewayImportSanitize": {
+      "properties": {
+        "certificateRefs": {
+          "type": "boolean"
+        },
+        "infrastructure": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GatewayImportStatus": {
+      "properties": {
+        "exposeAddresses": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GatewayVirtualNamespacePolicy": {
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "selector": {
+          "$ref": "#/$defs/StandardLabelSelector"
         }
       },
       "additionalProperties": false,
@@ -2583,6 +2817,10 @@
         "netris": {
           "$ref": "#/$defs/NetrisIntegration",
           "description": "Netris integration helps configuring netris networking for vCluster."
+        },
+        "argoCD": {
+          "$ref": "#/$defs/ArgoCDIntegration",
+          "description": "ArgoCD integration helps configuring ArgoCD for vCluster."
         }
       },
       "additionalProperties": false,
@@ -3878,6 +4116,10 @@
         "daemon": {
           "$ref": "#/$defs/PrivateNodesDaemon",
           "description": "Daemon holds configuration for the private nodes daemon that is deployed on the nodes."
+        },
+        "defaultProfile": {
+          "type": "string",
+          "description": "DefaultProfile is the name of a NodeProfile applied to nodes joining this vCluster that do not select one explicitly. Overridden by per-pool or per-node selection. Requires a platform connection to resolve."
         }
       },
       "additionalProperties": false,
@@ -3982,7 +4224,7 @@
         },
         "enableVolumeSnapshotRules": {
           "$ref": "#/$defs/EnableAutoSwitch",
-          "description": "EnableVolumeSnapshotRules enables all required volume snapshot rules in the Role and\nClusterRole."
+          "description": "EnableVolumeSnapshotRules enables all required volume snapshot rules in the Role and\nClusterRole.\nDeprecated: Removed in 0.36.0. Setting this value is rejected by the Helm chart; remove it from your config."
         }
       },
       "additionalProperties": false,
@@ -4375,7 +4617,7 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "Sleep holds configuration for automatically putting the virtual cluster to sleep."
+      "description": "Sleep holds configuration for automatically putting the tenant cluster to sleep."
     },
     "SleepAuto": {
       "properties": {
@@ -4564,17 +4806,6 @@
       "type": "object",
       "description": "SnapshotStorageS3 holds S3 storage configuration"
     },
-    "SnapshotVolumes": {
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Enabled specifies whether a snapshot should also include volumes in the snapshot\n+optional"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "description": "SnapshotVolumes holds volume snapshot configuration"
-    },
     "Snapshots": {
       "properties": {
         "auto": {
@@ -4590,7 +4821,7 @@
       "properties": {
         "schedule": {
           "type": "string",
-          "description": "Schedule specifies a scheduled time in Cron format, see https://en.wikipedia.org/wiki/Cron for a virtual cluster snapshot to be taken\n+optional"
+          "description": "Schedule specifies a scheduled time in Cron format, see https://en.wikipedia.org/wiki/Cron for a tenant cluster snapshot to be taken\n+optional"
         },
         "timezone": {
           "type": "string",
@@ -4603,10 +4834,6 @@
         "storage": {
           "$ref": "#/$defs/SnapshotStorage",
           "description": "Storage specifies where the snapshot will be stored\n+optional"
-        },
-        "volumes": {
-          "$ref": "#/$defs/SnapshotVolumes",
-          "description": "Volumes specifies configuration for volume snapshots\n+optional"
         }
       },
       "additionalProperties": false,
@@ -4622,6 +4849,10 @@
         "dataDir": {
           "type": "string",
           "description": "DataDir defines the data directory for the standalone mode."
+        },
+        "advertiseAddress": {
+          "type": "string",
+          "description": "AdvertiseAddress pins the IP address the standalone control plane advertises to the\nkubernetes and konnectivity Services. Defaults to the VCLUSTER_STANDALONE_IP_ADDRESS env\nvar, then default-route interface detection. Set this on multi-homed hosts where the\ndefault route is not reachable from the pod network."
         },
         "autoNodes": {
           "$ref": "#/$defs/StandaloneAutoNodes",
@@ -4781,6 +5012,10 @@
         "quantity": {
           "type": "integer",
           "description": "Quantity is the number of desired nodes in this pool."
+        },
+        "profile": {
+          "type": "string",
+          "description": "Profile references a NodeProfile applied to nodes created by this pool."
         }
       },
       "additionalProperties": false,
@@ -4839,6 +5074,14 @@
           "$ref": "#/$defs/EnableSwitchWithPatchesAndSelector",
           "description": "IngressClasses defines if ingress classes should get synced from the host cluster to the virtual cluster, but not back."
         },
+        "gatewayClasses": {
+          "$ref": "#/$defs/EnableSwitchWithPatchesAndSelector",
+          "description": "GatewayClasses defines if gateway classes should get synced from the control plane cluster to the tenant cluster, but not back."
+        },
+        "gateways": {
+          "$ref": "#/$defs/FromHostGateways",
+          "description": "Gateways defines if selected control plane Gateways should get synced from the control plane cluster to the tenant cluster, but not back."
+        },
         "runtimeClasses": {
           "$ref": "#/$defs/EnableSwitchWithPatchesAndSelector",
           "description": "RuntimeClasses defines if runtime classes should get synced from the host cluster to the virtual cluster, but not back."
@@ -4872,7 +5115,7 @@
         },
         "volumeSnapshotClasses": {
           "$ref": "#/$defs/EnableSwitchWithPatches",
-          "description": "VolumeSnapshotClasses defines if volume snapshot classes created within the virtual cluster should get synced to the host cluster."
+          "description": "VolumeSnapshotClasses defines if volume snapshot classes created within the virtual cluster should get synced to the host cluster.\nDeprecated: Removed in 0.36.0. Setting this value is rejected by the Helm chart; remove it from your config."
         },
         "configMaps": {
           "$ref": "#/$defs/EnableSwitchWithResourcesMappings",
@@ -5062,6 +5305,10 @@
           "$ref": "#/$defs/EnableSwitchWithPatches",
           "description": "Ingresses defines if ingresses created within the virtual cluster should get synced to the host cluster."
         },
+        "gatewayApi": {
+          "$ref": "#/$defs/GatewayAPIEnableSwitchWithPatches",
+          "description": "GatewayAPI defines Gateway API resources created within the tenant cluster that should get synced to the control plane cluster.\nSetting enabled: true turns on Gateway and HTTPRoute sync, imports control plane cluster GatewayClasses so tenant Gateways can resolve them, and serves tenant ReferenceGrants for validation; TLSRoutes and BackendTLSPolicies must be enabled individually."
+        },
         "services": {
           "$ref": "#/$defs/EnableSwitchWithPatches",
           "description": "Services defines if services created within the virtual cluster should get synced to the host cluster."
@@ -5088,11 +5335,11 @@
         },
         "volumeSnapshots": {
           "$ref": "#/$defs/EnableSwitchWithPatches",
-          "description": "VolumeSnapshots defines if volume snapshots created within the virtual cluster should get synced to the host cluster."
+          "description": "VolumeSnapshots defines if volume snapshots created within the virtual cluster should get synced to the host cluster.\nDeprecated: Removed in 0.36.0. Setting this value is rejected by the Helm chart; remove it from your config."
         },
         "volumeSnapshotContents": {
           "$ref": "#/$defs/EnableSwitchWithPatches",
-          "description": "VolumeSnapshotContents defines if volume snapshot contents created within the virtual cluster should get synced to the host cluster."
+          "description": "VolumeSnapshotContents defines if volume snapshot contents created within the virtual cluster should get synced to the host cluster.\nDeprecated: Removed in 0.36.0. Setting this value is rejected by the Helm chart; remove it from your config."
         },
         "storageClasses": {
           "$ref": "#/$defs/EnableSwitchWithPatches",
