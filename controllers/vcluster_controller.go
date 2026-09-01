@@ -41,7 +41,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -522,10 +522,10 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 			Name:      fmt.Sprintf("%s-kubeconfig", vCluster.Name),
 			Namespace: vCluster.Namespace,
 			Labels: map[string]string{
-				clusterv1beta1.ClusterNameLabel: vCluster.Name,
+				clusterv1beta2.ClusterNameLabel: vCluster.Name,
 			},
 		},
-		Type: clusterv1beta1.ClusterSecretType,
+		Type: clusterv1beta2.ClusterSecretType,
 		Data: map[string][]byte{
 			KubeconfigDataName: outKubeConfig,
 		},
@@ -739,7 +739,7 @@ func EnsureFinalizer(ctx context.Context, client client.Client, obj client.Objec
 // SetupWithManager sets up the controller with the Manager.
 func (r *VClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	var err error
-	r.clusterKindExists, err = kindExists(mgr.GetConfig(), clusterv1beta1.GroupVersion.WithKind("Cluster"))
+	r.clusterKindExists, err = kindExists(mgr.GetConfig(), clusterv1beta2.GroupVersion.WithKind("Cluster"))
 	if err != nil {
 		return err
 	}
