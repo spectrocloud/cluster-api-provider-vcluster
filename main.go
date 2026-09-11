@@ -35,11 +35,10 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	infrastructurev1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
+	controlplanev1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/controlplane/v1alpha1"
+	infrastructurev1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/infrastructure/v1alpha1"
 	"github.com/loft-sh/cluster-api-provider-vcluster/controllers"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
-	"github.com/loft-sh/log/logr"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -52,6 +51,8 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(infrastructurev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(controlplanev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(clusterv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -102,34 +103,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	rawConfig, err := kubeconfighelper.ConvertRestConfigToRawConfig(mgr.GetConfig())
-	if err != nil {
-		setupLog.Error(err, "unable to get config")
+	ctx := ctrl.SetupSignalHandler()
+	if err := controllers.RegisterControllers(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to register controllers")
 		os.Exit(1)
 	}
-
-	log, err := logr.NewLoggerWithOptions(
-		logr.WithOptionsFromEnv(),
-		logr.WithComponentName("vcluster-controller"),
-	)
-	if err != nil {
-		setupLog.Error(err, "unable to setup logger")
-		os.Exit(1)
-	}
-
-	if err = (&controllers.VClusterReconciler{
-		Client:             mgr.GetClient(),
-		HelmClient:         helm.NewClient(rawConfig),
-		HelmSecrets:        helm.NewSecrets(mgr.GetClient()),
-		Log:                log,
-		Scheme:             mgr.GetScheme(),
-		ClientConfigGetter: controllers.NewClientConfigGetter(),
-		HTTPClientGetter:   controllers.NewHTTPClientGetter(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "VCluster")
-		os.Exit(1)
-	}
-	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
@@ -141,7 +119,7 @@ func main() {
 	}
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
