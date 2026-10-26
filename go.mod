@@ -1,6 +1,6 @@
 module github.com/loft-sh/cluster-api-provider-vcluster
 
-go 1.26.4
+go 1.26.10
 
 require (
 	github.com/ghodss/yaml v1.0.0
