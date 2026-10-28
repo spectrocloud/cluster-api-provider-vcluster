@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"k8s.io/apimachinery/pkg/labels"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -45,6 +47,12 @@ type fakeAPIServer struct {
 	patch             []byte
 	namespaceSelector string
 	cleanupError      bool
+	pods              []corev1.Pod
+	deleted           []string
+	podListError      bool
+	podDeleteError    bool
+	podListCalls      int
+	listErrorOn       int
 }
 
 func (f *fakeAPIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +79,45 @@ func (f *fakeAPIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && r.URL.Path == "/apis/apps/v1/namespaces/"+testNamespace+"/statefulsets/"+testName:
 		// report the statefulset as scaled down
 		_ = json.NewEncoder(w).Encode(sts)
+	case r.Method == http.MethodGet && r.URL.Path == "/api/v1/namespaces/"+testNamespace+"/pods":
+		f.mu.Lock()
+		f.podListCalls++
+		failList := f.podListError || f.podListCalls == f.listErrorOn
+		f.mu.Unlock()
+		if failList {
+			http.Error(w, "pod list failed", http.StatusForbidden)
+			return
+		}
+		selector, err := labels.Parse(r.URL.Query().Get("labelSelector"))
+		if err != nil || r.URL.Query().Get("labelSelector") != "vcluster.loft.sh/managed-by="+testName {
+			http.Error(w, "incorrect workload selector", http.StatusBadRequest)
+			return
+		}
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		items := []corev1.Pod{}
+		for _, pod := range f.pods {
+			if selector.Matches(labels.Set(pod.Labels)) {
+				items = append(items, pod)
+			}
+		}
+		_ = json.NewEncoder(w).Encode(corev1.PodList{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "PodList"}, Items: items})
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/api/v1/namespaces/"+testNamespace+"/pods/"):
+		if f.podDeleteError {
+			http.Error(w, "pod deletion failed", http.StatusForbidden)
+			return
+		}
+		name := strings.TrimPrefix(r.URL.Path, "/api/v1/namespaces/"+testNamespace+"/pods/")
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		for i, pod := range f.pods {
+			if pod.Name == name {
+				f.pods = append(f.pods[:i], f.pods[i+1:]...)
+				f.deleted = append(f.deleted, name)
+				break
+			}
+		}
+		_ = json.NewEncoder(w).Encode(metav1.Status{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Status"}, Status: "Success"})
 	case r.Method == http.MethodGet && r.URL.Path == "/api/v1/namespaces":
 		f.mu.Lock()
 		f.namespaceSelector = r.URL.Query().Get("labelSelector")
@@ -221,6 +268,57 @@ func TestReconcilePersistsPauseStatus(t *testing.T) {
 			}
 			if condition.Status != expected {
 				t.Fatalf("persisted pause = %s, want %s", condition.Status, expected)
+			}
+		})
+	}
+}
+
+func TestPauseSingleNamespaceWorkloads(t *testing.T) {
+	for _, mode := range []string{"success", "list failure", "delete failure", "wait failure"} {
+		t.Run(mode, func(t *testing.T) {
+			api := &fakeAPIServer{
+				podListError: mode == "list failure", podDeleteError: mode == "delete failure",
+				pods: []corev1.Pod{
+					{ObjectMeta: metav1.ObjectMeta{Name: "workload", Labels: map[string]string{"vcluster.loft.sh/managed-by": testName}}},
+					{ObjectMeta: metav1.ObjectMeta{Name: "management", Labels: map[string]string{"app": "palette-controller-manager"}}},
+					{ObjectMeta: metav1.ObjectMeta{Name: "other-vcluster", Labels: map[string]string{"vcluster.loft.sh/managed-by": "another-vcluster"}}},
+				},
+			}
+			if mode == "wait failure" {
+				api.listErrorOn = 2
+			}
+			srv := httptest.NewServer(api)
+			defer srv.Close()
+			cs, err := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := &VClusterReconciler{Clientset: cs}
+			vc := newTestVCluster(map[string]string{"loft.sh/paused": "true"})
+			err = r.pauseIfNeeded(context.Background(), vc)
+			if mode != "success" {
+				if err == nil || conditions.IsTrue(vc, v1alpha1.PausedCondition) {
+					t.Fatalf("cleanup failure must not mark paused: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Repeated pause must be safe and leave management and unrelated pods intact.
+			if err := r.pauseIfNeeded(context.Background(), vc); err != nil {
+				t.Fatal(err)
+			}
+			api.mu.Lock()
+			defer api.mu.Unlock()
+			if len(api.deleted) != 1 || api.deleted[0] != "workload" {
+				t.Fatalf("unexpected deleted pods: %v", api.deleted)
+			}
+			if len(api.pods) != 2 {
+				t.Fatalf("expected management and unrelated pods retained, got %v", api.pods)
+			}
+			if !conditions.IsTrue(vc, v1alpha1.PausedCondition) {
+				t.Fatal("expected paused condition")
 			}
 		})
 	}
