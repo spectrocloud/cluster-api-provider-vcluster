@@ -172,28 +172,6 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 		}
 	}
 
-	// check if we have to pause
-	err = r.pauseIfNeeded(ctx, vCluster)
-	if err != nil {
-		r.Log.Error(err, "error during virtual cluster pause: ", "namespace", vCluster.Namespace, "name", vCluster.Name)
-		conditions.MarkFalse(vCluster, v1alpha1.PausedCondition, "Paused", v1alpha1.ConditionSeverityError, "%v", err)
-		return ctrl.Result{RequeueAfter: time.Second * 5}, err
-	}
-
-	// check if we have to resume
-	err = r.resumeIfNeeded(ctx, vCluster)
-	if err != nil {
-		r.Log.Error(err, "error during virtual cluster resume ", "namespace", vCluster.Namespace, "name", vCluster.Name)
-		return ctrl.Result{RequeueAfter: time.Second * 5}, err
-	}
-
-	// if vCluster is paused, skip remaining reconciliation
-	if conditions.IsTrue(vCluster, v1alpha1.PausedCondition) {
-		r.Log.Info("skipping remaining reconciliation for paused virtual cluster: %s/%s", vCluster.Namespace, vCluster.Name)
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
-	}
-	r.Log.Info("reconciling deployment, kubeconfig & health for active virtual cluster: %s/%s", vCluster.Namespace, vCluster.Name)
-
 	// ensure finalizer
 	err = EnsureFinalizer(ctx, r.Client, vCluster, CleanupFinalizer)
 	if err != nil {
@@ -289,7 +267,7 @@ func (r *VClusterReconciler) pauseIfNeeded(ctx context.Context, vCluster *v1alph
 	if err := lifecycle.PauseVCluster(ctx, r.Clientset, vCluster.Name, vCluster.Namespace, false, baseLogger); err != nil {
 		return err
 	}
-	if err := lifecycle.DeleteMultiNamespaceVClusterWorkloads(ctx, r.Clientset, "vcluster.loft.sh/managed-by="+vCluster.Name, vCluster.Namespace, baseLogger); err != nil {
+	if err := lifecycle.DeleteMultiNamespaceVClusterWorkloads(ctx, r.Clientset, vCluster.Name, vCluster.Namespace, baseLogger); err != nil {
 		return err
 	}
 
@@ -696,6 +674,7 @@ func patchCluster(ctx context.Context, patchHelper *patch.Helper, vCluster *v1al
 			v1alpha1.KubeconfigReadyCondition,
 			v1alpha1.ControlPlaneInitializedCondition,
 			v1alpha1.HelmChartDeployedCondition,
+			v1alpha1.PausedCondition,
 		}},
 	)
 	return patchHelper.Patch(ctx, vCluster, options...)

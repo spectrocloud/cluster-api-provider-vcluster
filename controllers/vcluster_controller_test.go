@@ -12,8 +12,12 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/conditions"
@@ -37,8 +41,10 @@ func newTestVCluster(annotations map[string]string) *v1alpha1.VCluster {
 // fakeAPIServer serves the minimal set of endpoints lifecycle.PauseVCluster needs
 // and records the statefulset patch it receives.
 type fakeAPIServer struct {
-	mu    sync.Mutex
-	patch []byte
+	mu                sync.Mutex
+	patch             []byte
+	namespaceSelector string
+	cleanupError      bool
 }
 
 func (f *fakeAPIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +72,14 @@ func (f *fakeAPIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// report the statefulset as scaled down
 		_ = json.NewEncoder(w).Encode(sts)
 	case r.Method == http.MethodGet && r.URL.Path == "/api/v1/namespaces":
+		f.mu.Lock()
+		f.namespaceSelector = r.URL.Query().Get("labelSelector")
+		f.mu.Unlock()
+		if f.cleanupError || r.URL.Query().Get("labelSelector") != "vcluster.loft.sh/managed-by=cluster-test-x-vcluster-test" {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(metav1.Status{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Status"}, Status: "Failure", Reason: metav1.StatusReasonBadRequest, Code: http.StatusBadRequest, Message: "namespace cleanup rejected"})
+			return
+		}
 		_ = json.NewEncoder(w).Encode(corev1.NamespaceList{
 			TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "NamespaceList"},
 		})
@@ -163,5 +177,51 @@ func TestPauseIfNeededScalesDownStatefulSet(t *testing.T) {
 	}
 	if patched.Annotations["loft.sh/paused"] != "true" {
 		t.Fatalf("expected statefulset to be annotated paused, patch was %s", api.patch)
+	}
+}
+
+func TestReconcilePersistsPauseStatus(t *testing.T) {
+	for _, cleanupError := range []bool{false, true} {
+		name := "success"
+		if cleanupError {
+			name = "cleanup failure"
+		}
+		t.Run(name, func(t *testing.T) {
+			api := &fakeAPIServer{cleanupError: cleanupError}
+			srv := httptest.NewServer(api)
+			defer srv.Close()
+			clientSet, err := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+			if err != nil {
+				t.Fatal(err)
+			}
+			scheme := runtime.NewScheme()
+			if err := v1alpha1.AddToScheme(scheme); err != nil {
+				t.Fatal(err)
+			}
+			vCluster := newTestVCluster(map[string]string{"loft.sh/paused": "true"})
+			vCluster.Finalizers = []string{CleanupFinalizer}
+			c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(vCluster).WithObjects(vCluster).Build()
+			r := &VClusterReconciler{Client: c, Clientset: clientSet}
+			key := types.NamespacedName{Name: testName, Namespace: testNamespace}
+			_, err = r.Reconcile(context.Background(), ctrl.Request{NamespacedName: key})
+			if (err != nil) != cleanupError {
+				t.Fatalf("reconcile error = %v, want error %v", err, cleanupError)
+			}
+			saved := &v1alpha1.VCluster{}
+			if err := c.Get(context.Background(), key, saved); err != nil {
+				t.Fatal(err)
+			}
+			condition := conditions.Get(saved, v1alpha1.PausedCondition)
+			if condition == nil {
+				t.Fatal("pause condition was not persisted")
+			}
+			expected := corev1.ConditionTrue
+			if cleanupError {
+				expected = corev1.ConditionFalse
+			}
+			if condition.Status != expected {
+				t.Fatalf("persisted pause = %s, want %s", condition.Status, expected)
+			}
+		})
 	}
 }
