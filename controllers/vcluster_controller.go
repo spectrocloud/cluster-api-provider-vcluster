@@ -20,7 +20,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/loft-sh/vcluster/pkg/lifecycle"
+	"github.com/loft-sh/vcluster/pkg/util/translate"
 	"io"
+	"k8s.io/apimachinery/pkg/labels"
 	"net/http"
 	"os"
 	"strings"
@@ -266,6 +268,20 @@ func (r *VClusterReconciler) pauseIfNeeded(ctx context.Context, vCluster *v1alph
 	baseLogger := log.GetInstance()
 	if err := lifecycle.PauseVCluster(ctx, r.Clientset, vCluster.Name, vCluster.Namespace, false, baseLogger); err != nil {
 		return err
+	}
+	// Delete only host-side workload pods; keep virtual workload definitions and storage for resume.
+	selector := labels.Set{translate.MarkerLabel: vCluster.Name}.AsSelector().String()
+	if err := lifecycle.DeletePods(ctx, r.Clientset, selector, vCluster.Namespace); err != nil {
+		return fmt.Errorf("delete single-namespace workloads: %w", err)
+	}
+	if err := wait.PollUntilContextTimeout(ctx, time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+		pods, err := r.Clientset.CoreV1().Pods(vCluster.Namespace).List(ctx, metav1.ListOptions{LabelSelector: selector})
+		if err != nil {
+			return false, err
+		}
+		return len(pods.Items) == 0, nil
+	}); err != nil {
+		return fmt.Errorf("wait for single-namespace workloads to stop: %w", err)
 	}
 	if err := lifecycle.DeleteMultiNamespaceVClusterWorkloads(ctx, r.Clientset, vCluster.Name, vCluster.Namespace, baseLogger); err != nil {
 		return err
