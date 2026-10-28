@@ -27,6 +27,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -143,8 +144,15 @@ func main() {
 		}
 		setupLog.Info("Webhook server setup completed")
 	} else {
+		clientSet, err := kubernetes.NewForConfig(mgr.GetConfig())
+		if err != nil {
+			setupLog.Error(err, "unable to create kubernetes clientset")
+			os.Exit(1)
+		}
+
 		if err = (&controllers.VClusterReconciler{
 			Client:             mgr.GetClient(),
+			Clientset:          clientSet,
 			HelmClient:         helm.NewClient(rawConfig),
 			HelmSecrets:        helm.NewSecrets(mgr.GetClient()),
 			Log:                log,
