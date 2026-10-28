@@ -282,6 +282,9 @@ func (r *VClusterReconciler) pauseIfNeeded(ctx context.Context, vCluster *v1alph
 	if !ok || v != "true" {
 		return nil
 	}
+	if r.Clientset == nil {
+		return fmt.Errorf("kubernetes clientset is not configured")
+	}
 	baseLogger := log.GetInstance()
 	if err := lifecycle.PauseVCluster(ctx, r.Clientset, vCluster.Name, vCluster.Namespace, false, baseLogger); err != nil {
 		return err
@@ -301,6 +304,9 @@ func (r *VClusterReconciler) resumeIfNeeded(ctx context.Context, vCluster *v1alp
 		return nil
 	}
 
+	if r.Clientset == nil {
+		return fmt.Errorf("kubernetes clientset is not configured")
+	}
 	baseLogger := log.GetInstance()
 	if err := lifecycle.ResumeVCluster(ctx, r.Clientset, vCluster.Name, vCluster.Namespace, false, baseLogger); err != nil {
 		return err
