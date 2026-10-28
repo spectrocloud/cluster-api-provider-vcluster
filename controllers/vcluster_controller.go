@@ -20,7 +20,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/loft-sh/vcluster/pkg/lifecycle"
+	"github.com/loft-sh/vcluster/pkg/util/translate"
 	"io"
+	"k8s.io/apimachinery/pkg/labels"
 	"net/http"
 	"os"
 	"strings"
@@ -172,28 +174,6 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 		}
 	}
 
-	// check if we have to pause
-	err = r.pauseIfNeeded(ctx, vCluster)
-	if err != nil {
-		r.Log.Error(err, "error during virtual cluster pause: ", "namespace", vCluster.Namespace, "name", vCluster.Name)
-		conditions.MarkFalse(vCluster, v1alpha1.PausedCondition, "Paused", v1alpha1.ConditionSeverityError, "%v", err)
-		return ctrl.Result{RequeueAfter: time.Second * 5}, err
-	}
-
-	// check if we have to resume
-	err = r.resumeIfNeeded(ctx, vCluster)
-	if err != nil {
-		r.Log.Error(err, "error during virtual cluster resume ", "namespace", vCluster.Namespace, "name", vCluster.Name)
-		return ctrl.Result{RequeueAfter: time.Second * 5}, err
-	}
-
-	// if vCluster is paused, skip remaining reconciliation
-	if conditions.IsTrue(vCluster, v1alpha1.PausedCondition) {
-		r.Log.Info("skipping remaining reconciliation for paused virtual cluster: %s/%s", vCluster.Namespace, vCluster.Name)
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
-	}
-	r.Log.Info("reconciling deployment, kubeconfig & health for active virtual cluster: %s/%s", vCluster.Namespace, vCluster.Name)
-
 	// ensure finalizer
 	err = EnsureFinalizer(ctx, r.Client, vCluster, CleanupFinalizer)
 	if err != nil {
@@ -282,11 +262,28 @@ func (r *VClusterReconciler) pauseIfNeeded(ctx context.Context, vCluster *v1alph
 	if !ok || v != "true" {
 		return nil
 	}
+	if r.Clientset == nil {
+		return fmt.Errorf("kubernetes clientset is not configured")
+	}
 	baseLogger := log.GetInstance()
 	if err := lifecycle.PauseVCluster(ctx, r.Clientset, vCluster.Name, vCluster.Namespace, false, baseLogger); err != nil {
 		return err
 	}
-	if err := lifecycle.DeleteMultiNamespaceVClusterWorkloads(ctx, r.Clientset, "vcluster.loft.sh/managed-by="+vCluster.Name, vCluster.Namespace, baseLogger); err != nil {
+	// Delete only host-side workload pods; keep virtual workload definitions and storage for resume.
+	selector := labels.Set{translate.MarkerLabel: vCluster.Name}.AsSelector().String()
+	if err := lifecycle.DeletePods(ctx, r.Clientset, selector, vCluster.Namespace); err != nil {
+		return fmt.Errorf("delete single-namespace workloads: %w", err)
+	}
+	if err := wait.PollUntilContextTimeout(ctx, time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+		pods, err := r.Clientset.CoreV1().Pods(vCluster.Namespace).List(ctx, metav1.ListOptions{LabelSelector: selector})
+		if err != nil {
+			return false, err
+		}
+		return len(pods.Items) == 0, nil
+	}); err != nil {
+		return fmt.Errorf("wait for single-namespace workloads to stop: %w", err)
+	}
+	if err := lifecycle.DeleteMultiNamespaceVClusterWorkloads(ctx, r.Clientset, vCluster.Name, vCluster.Namespace, baseLogger); err != nil {
 		return err
 	}
 
@@ -301,6 +298,9 @@ func (r *VClusterReconciler) resumeIfNeeded(ctx context.Context, vCluster *v1alp
 		return nil
 	}
 
+	if r.Clientset == nil {
+		return fmt.Errorf("kubernetes clientset is not configured")
+	}
 	baseLogger := log.GetInstance()
 	if err := lifecycle.ResumeVCluster(ctx, r.Clientset, vCluster.Name, vCluster.Namespace, false, baseLogger); err != nil {
 		return err
@@ -690,6 +690,7 @@ func patchCluster(ctx context.Context, patchHelper *patch.Helper, vCluster *v1al
 			v1alpha1.KubeconfigReadyCondition,
 			v1alpha1.ControlPlaneInitializedCondition,
 			v1alpha1.HelmChartDeployedCondition,
+			v1alpha1.PausedCondition,
 		}},
 	)
 	return patchHelper.Patch(ctx, vCluster, options...)
