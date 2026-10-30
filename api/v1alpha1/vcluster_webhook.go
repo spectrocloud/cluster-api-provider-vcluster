@@ -16,10 +16,9 @@ var vclusterlog = logf.Log.WithName("vcluster-resource")
 
 func (r *VCluster) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	// Create webhook builder with explicit custom interface registration
-	builder := ctrl.NewWebhookManagedBy(mgr).
-		For(r).
-		WithDefaulter(r).
-		WithValidator(r)
+	builder := ctrl.NewWebhookManagedBy(mgr, r).
+		WithCustomDefaulter(r).
+		WithCustomValidator(r)
 
 	// Complete webhook setup
 	err := builder.Complete()
