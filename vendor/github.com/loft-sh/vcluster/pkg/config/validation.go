@@ -4,14 +4,19 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"slices"
+	"strings"
 
 	"github.com/ghodss/yaml"
-	"github.com/loft-sh/vcluster/config"
-	"github.com/loft-sh/vcluster/pkg/util/toleration"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/validation"
+
+	"github.com/loft-sh/vcluster/config"
+	"github.com/loft-sh/vcluster/pkg/constants"
+	"github.com/loft-sh/vcluster/pkg/util/namespaces"
+	"github.com/loft-sh/vcluster/pkg/util/toleration"
 )
 
 var allowedPodSecurityStandards = map[string]bool{
@@ -37,12 +42,12 @@ func ValidateConfigAndSetDefaults(vConfig *VirtualClusterConfig) error {
 	}
 
 	// check if enable scheduler works correctly
-	if vConfig.ControlPlane.Advanced.VirtualScheduler.Enabled && !vConfig.Sync.FromHost.Nodes.Selector.All && len(vConfig.Sync.FromHost.Nodes.Selector.Labels) == 0 {
+	if vConfig.SchedulingInVirtualClusterEnabled() && !vConfig.Sync.FromHost.Nodes.Selector.All && len(vConfig.Sync.FromHost.Nodes.Selector.Labels) == 0 {
 		vConfig.Sync.FromHost.Nodes.Selector.All = true
 	}
 
 	// enable additional controllers required for scheduling with storage
-	if vConfig.ControlPlane.Advanced.VirtualScheduler.Enabled && vConfig.Sync.ToHost.PersistentVolumeClaims.Enabled {
+	if vConfig.SchedulingInVirtualClusterEnabled() && vConfig.Sync.ToHost.PersistentVolumeClaims.Enabled {
 		if vConfig.Sync.FromHost.CSINodes.Enabled == "auto" {
 			vConfig.Sync.FromHost.CSINodes.Enabled = "true"
 		}
@@ -62,21 +67,55 @@ func ValidateConfigAndSetDefaults(vConfig *VirtualClusterConfig) error {
 		return fmt.Errorf("embedded database is not supported with multiple replicas")
 	}
 
+	// disallow listing integration CRDs in sync.*.customResources if the corresponding integrations are enabled
+	if err := validateEnabledIntegrations(
+		vConfig.Sync.ToHost.CustomResources,
+		vConfig.Sync.FromHost.CustomResources,
+		vConfig.Integrations); err != nil {
+		return err
+	}
+
 	// check if custom resources have correct scope
 	for key, customResource := range vConfig.Sync.ToHost.CustomResources {
 		if customResource.Scope != "" && customResource.Scope != config.ScopeNamespaced {
 			return fmt.Errorf("unsupported scope %s for sync.toHost.customResources['%s'].scope. Only 'Namespaced' is allowed", customResource.Scope, key)
 		}
+		err := validatePatches(patchesValidation{basePath: "sync.toHost.customResources." + key, patches: customResource.Patches})
+		if err != nil {
+			return err
+		}
 	}
-	for key, customResource := range vConfig.Sync.FromHost.CustomResources {
-		if customResource.Scope != "" && customResource.Scope != config.ScopeCluster {
-			return fmt.Errorf("unsupported scope %s for sync.fromHost.customResources['%s'].scope. Only 'Cluster' is allowed", customResource.Scope, key)
+	if err := validateFromHostSyncCustomResources(vConfig.Sync.FromHost.CustomResources); err != nil {
+		return err
+	}
+
+	// validate sync patches
+	err := ValidateAllSyncPatches(vConfig.Sync)
+	if err != nil {
+		return err
+	}
+
+	// disallow old and new generic sync to be used together
+	if len(vConfig.Sync.ToHost.CustomResources) > 0 || len(vConfig.Sync.FromHost.CustomResources) > 0 {
+		// check if generic sync exports are used
+		if len(vConfig.Experimental.GenericSync.Exports) > 0 {
+			return errors.New("experimental.genericSync.exports is not allowed when using sync.toHost.customResources or sync.fromHost.customResources")
+		}
+
+		// check if generic sync imports are used
+		if len(vConfig.Experimental.GenericSync.Imports) > 0 {
+			return errors.New("experimental.genericSync.imports is not allowed when using sync.toHost.customResources or sync.fromHost.customResources")
+		}
+
+		// check if hooks are used
+		if vConfig.Experimental.GenericSync.Hooks != nil && (len(vConfig.Experimental.GenericSync.Hooks.HostToVirtual) > 0 || len(vConfig.Experimental.GenericSync.Hooks.VirtualToHost) > 0) {
+			return errors.New("experimental.genericSync.hooks is not allowed when using sync.toHost.customResources or sync.fromHost.customResources. Please use sync.*.patches.expression instead")
 		}
 	}
 
 	// check if nodes controller needs to be enabled
-	if vConfig.ControlPlane.Advanced.VirtualScheduler.Enabled && !vConfig.Sync.FromHost.Nodes.Enabled {
-		return errors.New("sync.fromHost.nodes.enabled is false, but required if using virtual scheduler")
+	if vConfig.SchedulingInVirtualClusterEnabled() && !vConfig.Sync.FromHost.Nodes.Enabled {
+		return errors.New("sync.fromHost.nodes.enabled is false, but required if using hybrid scheduling or virtual scheduler")
 	}
 
 	// check if storage classes and host storage classes are enabled at the same time
@@ -97,7 +136,7 @@ func ValidateConfigAndSetDefaults(vConfig *VirtualClusterConfig) error {
 	}
 
 	// validate central admission control
-	err := validateCentralAdmissionControl(vConfig)
+	err = validateCentralAdmissionControl(vConfig)
 	if err != nil {
 		return err
 	}
@@ -110,11 +149,6 @@ func ValidateConfigAndSetDefaults(vConfig *VirtualClusterConfig) error {
 
 	// validate distro
 	err = validateDistro(vConfig)
-	if err != nil {
-		return err
-	}
-
-	err = validateK0sAndNoExperimentalKubeconfig(vConfig)
 	if err != nil {
 		return err
 	}
@@ -133,9 +167,43 @@ func ValidateConfigAndSetDefaults(vConfig *VirtualClusterConfig) error {
 		return err
 	}
 
+	// check sync.fromHost.configMaps.selector.mappings
+	err = validateFromHostSyncMappings(vConfig.Sync.FromHost.ConfigMaps, "configMaps")
+	if err != nil {
+		return err
+	}
+
+	err = validateFromHostSyncMappings(vConfig.Sync.FromHost.Secrets, "secrets")
+	if err != nil {
+		return err
+	}
+
+	if isUsingOldGenericSync(vConfig.Experimental.GenericSync) && vConfig.Sync.ToHost.Namespaces.Enabled {
+		return errors.New("experimental.genericSync.imports is not allowed when using sync.toHost.namespaces")
+	}
+
+	// sync.toHost.namespaces validation
+	err = namespaces.ValidateNamespaceSyncConfig(&vConfig.Config, vConfig.Name, vConfig.ControlPlaneNamespace)
+	if err != nil {
+		return fmt.Errorf("namespace sync: %w", err)
+	}
+
+	// if we're runnign in with namespace sync enabled, we want to sync all objects.
+	// otherwise, objects created on host in synced namespaces won't get imported into vCluster.
+	if vConfig.Sync.ToHost.Namespaces.Enabled {
+		vConfig.Sync.ToHost.Secrets.All = true
+		vConfig.Sync.ToHost.ConfigMaps.All = true
+	}
+
 	// set service name
 	if vConfig.ControlPlane.Advanced.WorkloadServiceAccount.Name == "" {
 		vConfig.ControlPlane.Advanced.WorkloadServiceAccount.Name = "vc-workload-" + vConfig.Name
+	}
+
+	// check config for exporting kubeconfig Secrets
+	err = validateExportKubeConfig(vConfig.ExportKubeConfig)
+	if err != nil {
+		return err
 	}
 
 	// pro validate config
@@ -144,15 +212,117 @@ func ValidateConfigAndSetDefaults(vConfig *VirtualClusterConfig) error {
 		return err
 	}
 
+	// validate dedicated nodes mode
+	err = validatePrivatedNodesMode(vConfig)
+	if err != nil {
+		return err
+	}
+
+	// validate sync.fromHost classes
+	err = ValidateSyncFromHostClasses(vConfig.Config.Sync.FromHost)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type patchesValidation struct {
+	basePath string
+	patches  []config.TranslatePatch
+}
+
+// ValidateAllSyncPatches validates all sync patches
+func ValidateAllSyncPatches(sync config.Sync) error {
+	return validatePatches(
+		[]patchesValidation{
+			{"sync.toHost.configMaps", sync.ToHost.ConfigMaps.Patches},
+			{"sync.toHost.secrets", sync.ToHost.Secrets.Patches},
+			{"sync.toHost.endpoints", sync.ToHost.Endpoints.Patches},
+			{"sync.toHost.services", sync.ToHost.Services.Patches},
+			{"sync.toHost.pods", sync.ToHost.Pods.Patches},
+			{"sync.toHost.serviceAccounts", sync.ToHost.ServiceAccounts.Patches},
+			{"sync.toHost.ingresses", sync.ToHost.Ingresses.Patches},
+			{"sync.toHost.namespaces", sync.ToHost.Namespaces.Patches},
+			{"sync.toHost.networkPolicies", sync.ToHost.NetworkPolicies.Patches},
+			{"sync.toHost.persistentVolumeClaims", sync.ToHost.PersistentVolumeClaims.Patches},
+			{"sync.toHost.persistentVolumes", sync.ToHost.PersistentVolumes.Patches},
+			{"sync.toHost.podDisruptionBudgets", sync.ToHost.PodDisruptionBudgets.Patches},
+			{"sync.toHost.priorityClasses", sync.ToHost.PriorityClasses.Patches},
+			{"sync.toHost.storageClasses", sync.ToHost.StorageClasses.Patches},
+			{"sync.toHost.volumeSnapshots", sync.ToHost.VolumeSnapshots.Patches},
+			{"sync.toHost.volumeSnapshotContents", sync.ToHost.VolumeSnapshotContents.Patches},
+			{"sync.fromHost.nodes", sync.FromHost.Nodes.Patches},
+			{"sync.fromHost.storageClasses", sync.FromHost.StorageClasses.Patches},
+			{"sync.fromHost.priorityClasses", sync.FromHost.PriorityClasses.Patches},
+			{"sync.fromHost.ingressClasses", sync.FromHost.IngressClasses.Patches},
+			{"sync.fromHost.csiDrivers", sync.FromHost.CSIDrivers.Patches},
+			{"sync.fromHost.runtimeClasses", sync.FromHost.RuntimeClasses.Patches},
+			{"sync.fromHost.csiNodes", sync.FromHost.CSINodes.Patches},
+			{"sync.fromHost.csiStorageCapacities", sync.FromHost.CSIStorageCapacities.Patches},
+			{"sync.fromHost.events", sync.FromHost.Events.Patches},
+			{"sync.fromHost.volumeSnapshotClasses", sync.FromHost.VolumeSnapshotClasses.Patches},
+			{"sync.fromHost.configMaps", sync.FromHost.ConfigMaps.Patches},
+		}...,
+	)
+}
+
+func validatePatches(patchesValidation ...patchesValidation) error {
+	for _, p := range patchesValidation {
+		patches := p.patches
+		basePath := p.basePath
+		usedPaths := map[string]int{}
+		for idx, patch := range patches {
+			used := 0
+			if patch.Expression != "" || patch.ReverseExpression != "" {
+				used++
+			}
+			if patch.Labels != nil {
+				used++
+			}
+			if patch.Reference != nil {
+				used++
+			}
+			if used > 1 {
+				return fmt.Errorf("%s.patches[%d] can only use one of: expression, labels or reference", basePath, idx)
+			} else if used == 0 {
+				return fmt.Errorf("%s.patches[%d] need to use one of: expression, labels or reference", basePath, idx)
+			}
+			if j, ok := usedPaths[patch.Path]; ok {
+				return fmt.Errorf("%s.patches[%d] and %s.patches[%d] have the same path %q", basePath, j, basePath, idx, patch.Path)
+			}
+			usedPaths[patch.Path] = idx
+		}
+	}
+
+	return nil
+}
+
+func ValidateSyncFromHostClasses(fromHost config.SyncFromHost) error {
+	errorFn := func(sls config.StandardLabelSelector, path string) error {
+		if _, err := sls.ToSelector(); err != nil {
+			return fmt.Errorf("invalid sync.fromHost.%s.selector: %w", path, err)
+		}
+		return nil
+	}
+	if err := errorFn(fromHost.RuntimeClasses.Selector, "runtimeClasses"); err != nil {
+		return err
+	}
+	if err := errorFn(fromHost.IngressClasses.Selector, "ingressClasses"); err != nil {
+		return err
+	}
+	if err := errorFn(fromHost.PriorityClasses.Selector, "priorityClasses"); err != nil {
+		return err
+	}
+	if err := errorFn(fromHost.StorageClasses.Selector, "storageClasses"); err != nil {
+		return err
+	}
 	return nil
 }
 
 func validateDistro(config *VirtualClusterConfig) error {
 	enabledDistros := 0
 	if config.ControlPlane.Distro.K3S.Enabled {
-		enabledDistros++
-	}
-	if config.ControlPlane.Distro.K0S.Enabled {
 		enabledDistros++
 	}
 	if config.ControlPlane.Distro.K8S.Enabled {
@@ -480,15 +650,289 @@ func validateWildcardOrAny(values []string) error {
 	return nil
 }
 
-func validateK0sAndNoExperimentalKubeconfig(c *VirtualClusterConfig) error {
-	if c.Distro() != config.K0SDistro {
+func isUsingOldGenericSync(genericSync config.ExperimentalGenericSync) bool {
+	return len(genericSync.Exports) > 0 || len(genericSync.Imports) > 0 ||
+		(genericSync.Hooks != nil && (len(genericSync.Hooks.HostToVirtual) > 0 || len(genericSync.Hooks.VirtualToHost) > 0))
+}
+
+func validateFromHostSyncMappings(s config.EnableSwitchWithResourcesMappings, resourceNamePlural string) error {
+	if !s.Enabled {
 		return nil
 	}
-	virtualclusterconfig := c.Experimental.VirtualClusterKubeConfig
-	empty := config.VirtualClusterKubeConfig{}
-	if virtualclusterconfig != empty {
-		return errors.New("config.experimental.VirtualClusterConfig cannot be set for k0s")
+	if len(s.Mappings.ByName) == 0 {
+		return fmt.Errorf("config.sync.fromHost.%s.mappings are empty", resourceNamePlural)
 	}
+	for key, value := range s.Mappings.ByName {
+		if !strings.Contains(key, "/") && key != constants.VClusterNamespaceInHostMappingSpecialCharacter {
+			return fmt.Errorf("config.sync.fromHost.%s.selector.mappings has key in invalid format: %s (expected NAMESPACE_NAME/NAME, NAMESPACE_NAME/*, /NAME or \"\")", resourceNamePlural, key)
+		}
+		if !strings.Contains(value, "/") && key != constants.VClusterNamespaceInHostMappingSpecialCharacter {
+			return fmt.Errorf("config.sync.fromHost.%s.selector.mappings has value in invalid format: %s (expected NAMESPACE_NAME/NAME or NAMESPACE_NAME/* or NAMESPACE if key is \"\")", resourceNamePlural, value)
+		}
+		if key == "*" && strings.Contains(value, "/") && !strings.HasSuffix(value, "/*") {
+			return fmt.Errorf("config.sync.fromHost.%s.selector.mappings has key \"\" that matches vCluster host namespace but the value is not in NAMESPACE_NAME or NAMESPACE_NAME/* format (value: %s)", resourceNamePlural, value)
+		}
+		if strings.HasSuffix(key, "/*") && !strings.HasSuffix(value, "/*") {
+			return fmt.Errorf(
+				"config.sync.fromHost.%s.selector.mappings has key that matches all objects in the namespace: %s "+
+					"but value does not: %s. Please make sure that value for this key is in the format of NAMESPACE_NAME/*",
+				resourceNamePlural, key, value,
+			)
+		}
+		if err := validateFromHostMappingEntry(key, value, resourceNamePlural); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateFromHostMappingEntry(key, value, resourceNamePlural string) error {
+	if strings.Count(key, "/") > 1 || strings.Count(value, "/") > 1 {
+		return fmt.Errorf("config.sync.fromHost.%s.selector.mappings has key:value pair in invalid format: %s:%s (expected NAMESPACE_NAME/NAME, NAMESPACE_NAME/*, /NAME or \"\")", resourceNamePlural, key, value)
+	}
+	hostRef := strings.Split(key, "/")
+	virtualRef := strings.Split(value, "/")
+	if key != "" && len(hostRef) > 0 {
+		errs := validation.ValidateNamespaceName(hostRef[0], false)
+		if len(errs) > 0 && hostRef[0] != "" {
+			return fmt.Errorf("config.sync.fromHost.%s.selector.mappings parsed host namespace is not valid namespace name %s", resourceNamePlural, errs)
+		}
+		if err := validateFromHostSyncMappingObjectName(hostRef, resourceNamePlural); err != nil {
+			return err
+		}
+	}
+	if len(virtualRef) > 0 {
+		errs := validation.ValidateNamespaceName(virtualRef[0], false)
+		if len(errs) > 0 {
+			return fmt.Errorf("config.sync.fromHost.%s.selector.mappings parsed virtual namespace is not valid namespace name %s", resourceNamePlural, errs)
+		}
+		if err := validateFromHostSyncMappingObjectName(virtualRef, resourceNamePlural); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateFromHostSyncCustomResources(customResources map[string]config.SyncFromHostCustomResource) error {
+	for key, customResource := range customResources {
+		if customResource.Scope != "" && customResource.Scope != config.ScopeCluster && customResource.Scope != config.ScopeNamespaced {
+			return fmt.Errorf("unsupported scope %s for sync.fromHost.customResources['%s'].scope. Only 'Cluster' and 'Namespaced' are allowed", customResource.Scope, key)
+		}
+		if len(customResource.Mappings.ByName) > 0 && customResource.Scope != config.ScopeNamespaced {
+			return fmt.Errorf(".selector.mappings are only supported for sync.fromHost.customResources['%s'] with scope 'Namespaced'", key)
+		}
+		if customResource.Scope == config.ScopeNamespaced && len(customResource.Mappings.ByName) == 0 {
+			return fmt.Errorf(".selector.mappings is required for Namespaced scope sync.fromHost.customResources['%s']", key)
+		}
+		err := validatePatches(patchesValidation{basePath: "sync.fromHost.customResources." + key, patches: customResource.Patches})
+		if err != nil {
+			return err
+		}
+
+		if customResource.Scope == config.ScopeNamespaced {
+			for host, virtual := range customResource.Mappings.ByName {
+				if err := validateFromHostMappingEntry(host, virtual, key); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func validateFromHostSyncMappingObjectName(objRef []string, resourceNamePlural string) error {
+	var errs []string
+	if len(objRef) == 2 && objRef[1] != "" && objRef[1] != "*" {
+		errs = validation.NameIsDNSSubdomain(objRef[1], false)
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("config.sync.fromHost.%s.selector.mappings parsed object name from key (%s) is not valid name %s", resourceNamePlural, strings.Join(objRef, "/"), errs)
+	}
+	return nil
+}
+
+var (
+	errExportKubeConfigBothSecretAndAdditionalSecretsSet       = errors.New("exportKubeConfig.Secret and exportKubeConfig.AdditionalSecrets cannot be set at the same time")
+	errExportKubeConfigAdditionalSecretWithoutNameAndNamespace = errors.New("additional secret must have name and/or namespace set")
+)
+
+func validateExportKubeConfig(exportKubeConfig config.ExportKubeConfig) error {
+	// You cannot set both Secret and AdditionalSecrets at the same time.
+	if exportKubeConfig.Secret.IsSet() && len(exportKubeConfig.AdditionalSecrets) > 0 {
+		return errExportKubeConfigBothSecretAndAdditionalSecretsSet
+	}
+	for _, additionalSecret := range exportKubeConfig.AdditionalSecrets {
+		// You must set at least Name or Namespace for every additional kubeconfig secret.
+		if additionalSecret.Name == "" && additionalSecret.Namespace == "" {
+			return errExportKubeConfigAdditionalSecretWithoutNameAndNamespace
+		}
+	}
+	return nil
+}
+
+func validateEnabledIntegrations(
+	toHostCustomResources map[string]config.SyncToHostCustomResource,
+	fromHostCustomResources map[string]config.SyncFromHostCustomResource,
+	integrations config.Integrations) error {
+	if err := validateIstioEnabled(toHostCustomResources, integrations.Istio); err != nil {
+		return err
+	}
+	if err := validateCertManagerEnabled(toHostCustomResources, fromHostCustomResources, integrations.CertManager); err != nil {
+		return err
+	}
+	if err := validateExternalSecretsEnabled(toHostCustomResources, integrations.ExternalSecrets); err != nil {
+		return err
+	}
+	if err := validateKubeVirtEnabled(toHostCustomResources, integrations.KubeVirt); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateIstioEnabled(
+	toHostCustomResources map[string]config.SyncToHostCustomResource,
+	istioIntegration config.Istio) error {
+	if !istioIntegration.Enabled {
+		return nil
+	}
+	for crdName, crdConfig := range toHostCustomResources {
+		if crdConfig.Enabled &&
+			(crdName == "destinationrules.networking.istio.io" && istioIntegration.Sync.ToHost.DestinationRules.Enabled ||
+				crdName == "virtualservices.networking.istio.io" && istioIntegration.Sync.ToHost.VirtualServices.Enabled ||
+				crdName == "gateways.networking.istio.io" && istioIntegration.Sync.ToHost.Gateways.Enabled) {
+			return fmt.Errorf("istio integration is enabled but istio custom resource (%s) is also set in the sync.toHost.customResources. "+
+				"This is not supported, please remove the entry from sync.toHost.customResources", crdName)
+		}
+	}
+	return nil
+}
+
+func validateCertManagerEnabled(
+	toHostCustomResources map[string]config.SyncToHostCustomResource,
+	fromHostCustomResource map[string]config.SyncFromHostCustomResource,
+	certManagerIntegration config.CertManager) error {
+	if !certManagerIntegration.Enabled {
+		return nil
+	}
+	errMsg := "cert-manager integration is enabled but cert-manager custom resource (%s) is also set in the sync.%[2]s.customResources. " +
+		"This is not supported, please remove the entry from sync.%[2]s.customResources"
+	for crdName, crdConfig := range toHostCustomResources {
+		if crdConfig.Enabled &&
+			(crdName == "certificates.cert-manager.io" && certManagerIntegration.Sync.ToHost.Certificates.Enabled ||
+				crdName == "issuers.cert-manager.io" && certManagerIntegration.Sync.ToHost.Issuers.Enabled) {
+			return fmt.Errorf(errMsg, crdName, "toHost")
+		}
+	}
+	for crdName, crdConfig := range fromHostCustomResource {
+		if crdConfig.Enabled && crdName == "clusterissuers.cert-manager.io" && certManagerIntegration.Sync.FromHost.ClusterIssuers.Enabled {
+			return fmt.Errorf(errMsg, crdName, "fromHost")
+		}
+	}
+	return nil
+}
+
+func validateExternalSecretsEnabled(
+	toHostCustomResources map[string]config.SyncToHostCustomResource,
+	externalSecretsIntegration config.ExternalSecrets) error {
+	if !externalSecretsIntegration.Enabled {
+		return nil
+	}
+	for crdName, crdConfig := range toHostCustomResources {
+		if crdConfig.Enabled &&
+			(crdName == "externalsecrets.external-secrets.io" && externalSecretsIntegration.Sync.ExternalSecrets.Enabled ||
+				crdName == "secretstores.external-secrets.io" && externalSecretsIntegration.Sync.Stores.Enabled ||
+				crdName == "clustersecretstores.external-secrets.io" && externalSecretsIntegration.Sync.ClusterStores.Enabled) {
+			return fmt.Errorf("external-secrets integration is enabled but external-secrets custom resource (%s) is also set in the sync.toHost.customResources. "+
+				"This is not supported, please remove the entry from sync.toHost.customResources", crdName)
+		}
+	}
+	return nil
+}
+
+func validateKubeVirtEnabled(
+	toHostCustomResources map[string]config.SyncToHostCustomResource,
+	kubeVirtIntegration config.KubeVirt) error {
+	if !kubeVirtIntegration.Enabled {
+		return nil
+	}
+	for crdName, crdConfig := range toHostCustomResources {
+		if crdConfig.Enabled &&
+			(isIn(crdName, "datavolumes.cdi.kubevirt.io", "datavolumes/status.cdi.kubevirt.io") && kubeVirtIntegration.Sync.DataVolumes.Enabled ||
+				isIn(crdName, "virtualmachineinstancemigrations.kubevirt.io", "virtualmachineinstancemigrations/status.kubevirt.io") && kubeVirtIntegration.Sync.VirtualMachineInstanceMigrations.Enabled ||
+				isIn(crdName, "virtualmachineinstances.kubevirt.io", "virtualmachineinstances/status.kubevirt.io") && kubeVirtIntegration.Sync.VirtualMachineInstances.Enabled ||
+				isIn(crdName, "virtualmachines.kubevirt.io", "virtualmachines/status.kubevirt.io") && kubeVirtIntegration.Sync.VirtualMachines.Enabled ||
+				isIn(crdName, "virtualmachineclones.clone.kubevirt.io", "virtualmachineclones/status.clone.kubevirt.io") && kubeVirtIntegration.Sync.VirtualMachineClones.Enabled ||
+				isIn(crdName, "virtualmachinepools.pool.kubevirt.io", "virtualmachinepools/status.pool.kubevirt.io") && kubeVirtIntegration.Sync.VirtualMachinePools.Enabled) {
+			return fmt.Errorf("kube-virt integration is enabled but kube-virt custom resource (%s) is also set in the sync.toHost.customResources. "+
+				"This is not supported, please remove the entry from sync.toHost.customResources", crdName)
+		}
+	}
+	return nil
+}
+
+func isIn(crdName string, s ...string) bool {
+	return slices.Contains(s, crdName)
+}
+
+func validatePrivatedNodesMode(vConfig *VirtualClusterConfig) error {
+	if !vConfig.PrivateNodes.Enabled {
+		if vConfig.ControlPlane.Endpoint != "" {
+			return fmt.Errorf("endpoint is only supported in private nodes mode")
+		}
+
+		return nil
+	}
+
+	// validate endpoint
+	if vConfig.ControlPlane.Endpoint != "" {
+		_, _, err := net.SplitHostPort(vConfig.ControlPlane.Endpoint)
+		if err != nil {
+			return fmt.Errorf("invalid endpoint %s: %w", vConfig.ControlPlane.Endpoint, err)
+		}
+	}
+
+	// integrations are not supported in private nodes mode
+	if vConfig.Integrations.MetricsServer.Enabled {
+		return fmt.Errorf("metrics-server integration is not supported in private nodes mode")
+	}
+	if vConfig.Integrations.CertManager.Enabled {
+		return fmt.Errorf("cert-manager integration is not supported in private nodes mode")
+	}
+	if vConfig.Integrations.ExternalSecrets.Enabled {
+		return fmt.Errorf("external-secrets integration is not supported in private nodes mode")
+	}
+	if vConfig.Integrations.Istio.Enabled {
+		return fmt.Errorf("istio integration is not supported in private nodes mode")
+	}
+	if vConfig.Integrations.KubeVirt.Enabled {
+		return fmt.Errorf("kubevirt integration is not supported in private nodes mode")
+	}
+
+	// embedded coredns is not supported in private nodes mode
+	if vConfig.ControlPlane.CoreDNS.Embedded {
+		return fmt.Errorf("coredns is not supported in private nodes mode")
+	}
+
+	// host path mapper is not supported in private nodes mode
+	if vConfig.ControlPlane.HostPathMapper.Enabled {
+		return fmt.Errorf("host path mapper is not supported in private nodes mode")
+	}
+
+	// multi-namespace mode is not supported in private nodes mode
+	if vConfig.Sync.ToHost.Namespaces.Enabled {
+		return fmt.Errorf("multi-namespace mode is not supported in private nodes mode")
+	}
+
+	// isolated control plane is not supported in dedicated mode
+	if vConfig.Experimental.IsolatedControlPlane.Enabled {
+		return fmt.Errorf("isolated control plane is not supported in private nodes mode")
+	}
+
+	// dedicated mode is only supported for kubernetes distro
+	if vConfig.Distro() != config.K8SDistro {
+		return fmt.Errorf("private nodes mode is only supported for kubernetes")
+	}
+
 	return nil
 }
 
