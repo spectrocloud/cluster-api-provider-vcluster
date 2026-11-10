@@ -58,17 +58,19 @@ spec:
               controlPlaneEndpoint:
                 description: ControlPlaneEndpoint represents the endpoint used to
                   communicate with the control plane.
+                minProperties: 1
                 properties:
                   host:
-                    description: The hostname on which the API server is serving.
+                    description: host is the hostname on which the API server is serving.
+                    maxLength: 512
+                    minLength: 1
                     type: string
                   port:
-                    description: The port on which the API server is serving.
+                    description: port is the port on which the API server is serving.
                     format: int32
+                    maximum: 65535
+                    minimum: 1
                     type: integer
-                required:
-                - host
-                - port
                 type: object
               helmRelease:
                 description: |-
@@ -91,6 +93,10 @@ spec:
                   values:
                     description: the values for the given chart
                     type: string
+                  valuesObject:
+                    description: the values for the given chart
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
                 type: object
             type: object
           status:
@@ -142,6 +148,11 @@ spec:
                   - type
                   type: object
                 type: array
+              externalManagedControlPlane:
+                description: |-
+                  ExternalManagedControlPlane is required by Cluster API to indicate that the control plane
+                  is externally managed.
+                type: boolean
               initialized:
                 default: false
                 description: Initialized defines if the virtual cluster control plane
